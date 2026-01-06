@@ -1,20 +1,39 @@
 # app.py
 # Pub Trivia / Bar Trivia app (Streamlit + SQLite)
-# Features:
-# - Teams: create/login with team name + password (hashed), admin can reset/delete
-# - Admin toggle: disable NEW team creation (existing teams can still log in)
-# - 3 tabs: Scoreboard, Submit Answer, Admin
-# - Admin: set question/answer, open/close submissions, reveal answer, move next question
-# - Admin: grade submissions correct/incorrect, override awarded points
-# - Admin: upload Question Bank CSV (Number, Category, Question, Answer, Note)
-# - Admin: display Number/Category index grouped in blocks of 3 (1-3, 4-6, ...)
+#
+# NEW FLOW (per your request):
+# - Landing page: choose "Team" or "Admin"
+# - If Team: prompt team name + password (create/login; creation can be disabled by admin toggle)
+# - If Admin: prompt admin password
+# - After login:
+#     - Teams see tabs: Scoreboard (home), Submit Answer
+#     - Admins see tabs: Scoreboard (home), Admin
+#
+# Admin features:
+# - Toggle: allow/disable NEW team creation (existing teams can still log in)
+# - Team manager: view teams, reset/set password (including generate temp password), delete team (optional)
+# - Upload CSV question bank: columns exactly Number,Category,Question,Answer,Note
+# - Display question index grouped by 3 (1–3, 4–6, ...)
+# - Load a question from bank into live game_state
+# - Set question/answer manually, open/close submissions, reveal answer
+# - Progress game: jump round/question/half, next question
+# - Grade submissions: mark correct/incorrect, override awarded points
+#
+# Team features:
+# - See live game status + scoreboard
+# - Submit/update answer while submissions are open (cannot edit after grading)
+# - See official answer after reveal
+#
+# IMPORTANT:
+# - No auto-rerun loop (it breaks Admin UI). Use manual refresh buttons instead.
 
 import sqlite3
-import time
 import hashlib
 from datetime import datetime
 import csv
 import io
+import secrets
+import string
 
 import streamlit as st
 
@@ -23,9 +42,7 @@ DB_PATH = "trivia.db"
 # -----------------------------
 # Config
 # -----------------------------
-DEFAULT_ADMIN_PASSWORD = "changeme"  # set in .streamlit/secrets.toml as ADMIN_PASSWORD ideally
-AUTO_REFRESH_SECONDS = 3            # scoreboard refresh cadence
-
+DEFAULT_ADMIN_PASSWORD = "changeme"  # Prefer: .streamlit/secrets.toml -> ADMIN_PASSWORD="..."
 # -----------------------------
 # DB helpers
 # -----------------------------
@@ -53,7 +70,7 @@ def init_db():
     )
     """)
 
-    # Single-row game state
+    # Game state (single row)
     cur.execute("""
     CREATE TABLE IF NOT EXISTS game_state (
         id INTEGER PRIMARY KEY CHECK (id = 1),
@@ -68,7 +85,7 @@ def init_db():
     )
     """)
 
-    # Submissions (one per team per question)
+    # Submissions
     cur.execute("""
     CREATE TABLE IF NOT EXISTS submissions (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -98,13 +115,13 @@ def init_db():
         VALUES (1, 1, 1, 1, '', '', 0, 0, ?)
         """, (datetime.utcnow().isoformat(),))
 
-    # Add allow_new_teams flag if missing (schema migration)
+    # Add allow_new_teams flag if missing (migration)
     cur.execute("PRAGMA table_info(game_state)")
     gs_cols = [r[1] for r in cur.fetchall()]
     if "allow_new_teams" not in gs_cols:
         cur.execute("ALTER TABLE game_state ADD COLUMN allow_new_teams INTEGER NOT NULL DEFAULT 1")
 
-    # Question bank (from CSV)
+    # Question bank
     cur.execute("""
     CREATE TABLE IF NOT EXISTS question_bank (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -161,17 +178,14 @@ def get_or_create_team(conn, team_name: str, password: str, allow_new_teams: boo
     cur.execute("SELECT * FROM teams WHERE team_name = ?", (team_name,))
     existing = cur.fetchone()
 
-    # Existing team -> validate password
     if existing:
         if existing["pass_hash"] != sha256(password):
             return None, "Incorrect password for that team name."
         return dict(existing), None
 
-    # New team creation disabled
     if not allow_new_teams:
         return None, "New team creation is currently disabled. Please log in with an existing team."
 
-    # Create new team
     try:
         cur.execute(
             "INSERT INTO teams (team_name, pass_hash, created_at) VALUES (?, ?, ?)",
@@ -196,7 +210,6 @@ def upsert_submission(conn, team_id: int, gs, submitted_answer: str, wager_point
     """, (team_id, gs["current_round"], gs["current_question"]))
     existing = cur.fetchone()
 
-    # Prevent changes after grading
     if existing and existing["is_correct"] is not None:
         return False, "This question has already been graded; you can’t change your answer now."
 
@@ -208,9 +221,11 @@ def upsert_submission(conn, team_id: int, gs, submitted_answer: str, wager_point
         """, (submitted_answer, wager_points, now, existing["id"]))
     else:
         cur.execute("""
-            INSERT INTO submissions (team_id, round_num, question_num, half,
-                                     submitted_answer, wager_points, submitted_at,
-                                     is_correct, awarded_points)
+            INSERT INTO submissions (
+                team_id, round_num, question_num, half,
+                submitted_answer, wager_points, submitted_at,
+                is_correct, awarded_points
+            )
             VALUES (?, ?, ?, ?, ?, ?, ?, NULL, 0)
         """, (
             team_id, gs["current_round"], gs["current_question"], gs["half"],
@@ -289,6 +304,11 @@ def admin_delete_team(conn, team_id: int):
     conn.commit()
 
 
+def generate_temp_password(length: int = 8) -> str:
+    alphabet = string.ascii_letters + string.digits
+    return "".join(secrets.choice(alphabet) for _ in range(length))
+
+
 # -----------------------------
 # Admin: question bank CSV
 # -----------------------------
@@ -347,7 +367,7 @@ def upsert_question_bank_rows(conn, rows: list[dict]):
             question=excluded.question,
             answer=excluded.answer,
             note=excluded.note
-        """, (r["q_number"], r["category"], r["question"], r["answer"], r.get("note")))
+        """, (r["q_number"], r["category"], r["question"], r["answer"], r["note"]))
     conn.commit()
 
 
@@ -369,6 +389,16 @@ def get_question_by_number(conn, q_number: int):
 
 
 # -----------------------------
+# Session helpers
+# -----------------------------
+def logout():
+    st.session_state.pop("role", None)
+    st.session_state.pop("team_id", None)
+    st.session_state.pop("team_name", None)
+    st.session_state.pop("is_admin", None)
+
+
+# -----------------------------
 # UI
 # -----------------------------
 st.set_page_config(page_title="Pub Trivia", layout="wide")
@@ -379,11 +409,46 @@ gs = get_game_state(conn)
 
 st.title("🍻 Pub Trivia")
 
-# Sidebar: team login / creation
-with st.sidebar:
-    st.header("Team Login")
+# Top-right-ish controls
+top_left, top_right = st.columns([5, 1])
+with top_right:
+    if st.session_state.get("role"):
+        if st.button("Log out"):
+            logout()
+            st.rerun()
+
+role = st.session_state.get("role")  # None, "team", "admin"
+
+# -----------------------------
+# Landing page (role selection)
+# -----------------------------
+if role is None:
+    st.subheader("Welcome")
+    st.write("Select how you want to enter:")
+
+    c1, c2 = st.columns(2)
+    with c1:
+        if st.button("👥 Team"):
+            st.session_state["role"] = "team"
+            st.rerun()
+    with c2:
+        if st.button("🛠️ Admin"):
+            st.session_state["role"] = "admin"
+            st.rerun()
+
+    st.divider()
+
+    st.info("Tip: Teams use their team name + password. Admin uses the host password.")
+    conn.close()
+    st.stop()
+
+# -----------------------------
+# Team login screen
+# -----------------------------
+if role == "team" and st.session_state.get("team_id") is None:
+    st.subheader("Team Login")
     team_name = st.text_input("Team name", value=st.session_state.get("team_name", ""))
-    team_pass = st.text_input("Team password", type="password", key="team_pass")
+    team_pass = st.text_input("Team password", type="password")
 
     if st.button("Enter / Create Team"):
         gs = get_game_state(conn)
@@ -399,33 +464,62 @@ with st.sidebar:
             st.session_state["team_id"] = team["id"]
             st.session_state["team_name"] = team["team_name"]
             st.success(f"Welcome, {team['team_name']}!")
+            st.rerun()
 
-    st.divider()
-    st.header("Admin Login")
-    admin_pass = st.text_input("Admin password", type="password", key="admin_pass")
+    st.caption("If your browser refreshes, just log back in with the same team name + password.")
+    conn.close()
+    st.stop()
+
+# -----------------------------
+# Admin login screen
+# -----------------------------
+if role == "admin" and not st.session_state.get("is_admin", False):
+    st.subheader("Admin Login")
+    admin_pass = st.text_input("Admin password", type="password")
+
     if st.button("Enter Admin"):
         real_admin = st.secrets.get("ADMIN_PASSWORD", DEFAULT_ADMIN_PASSWORD)
         st.session_state["is_admin"] = (admin_pass == real_admin)
         if st.session_state["is_admin"]:
             st.success("Admin mode enabled.")
+            st.rerun()
         else:
             st.error("Wrong admin password.")
 
-team_id = st.session_state.get("team_id")
-team_logged_in = team_id is not None
-is_admin = bool(st.session_state.get("is_admin", False))
+    conn.close()
+    st.stop()
 
-tab1, tab2, tab3 = st.tabs(["📊 Scoreboard", "✍️ Submit Answer", "🛠️ Admin"])
+# From here: logged in (team or admin)
+is_admin = (role == "admin") and bool(st.session_state.get("is_admin", False))
+team_logged_in = (role == "team") and (st.session_state.get("team_id") is not None)
 
 # -----------------------------
-# Tab 1: Scoreboard
+# Tabs depend on role
 # -----------------------------
-with tab1:
+if is_admin:
+    tab_scoreboard, tab_admin = st.tabs(["📊 Scoreboard", "🛠️ Admin"])
+elif team_logged_in:
+    tab_scoreboard, tab_submit = st.tabs(["📊 Scoreboard", "✍️ Submit Answer"])
+else:
+    # safety fallback
+    logout()
+    st.rerun()
+
+# -----------------------------
+# Scoreboard (both roles)
+# -----------------------------
+with tab_scoreboard:
     gs = get_game_state(conn)
+
+    header_left, header_right = st.columns([3, 1])
+    with header_left:
+        st.subheader("Scoreboard")
+    with header_right:
+        if st.button("🔄 Refresh"):
+            st.rerun()
 
     colA, colB = st.columns([2, 1])
     with colA:
-        st.subheader("Scoreboard")
         scores = compute_scores(conn)
         st.dataframe(
             [{"Team": s["team_name"], "Score": s["score"]} for s in scores],
@@ -437,29 +531,28 @@ with tab1:
         st.subheader("Game Status")
         st.write(f"**Round:** {gs['current_round']}")
         st.write(f"**Question:** {gs['current_question']}")
-        st.write(f"**Half:** {gs['half']} (wagers: {allowed_wagers(gs['half'])})")
+        st.write(f"**Half:** {gs['half']} (wagers: {allowed_wagers(int(gs['half']))})")
         st.write(f"**Submissions:** {'OPEN ✅' if gs['submissions_open'] else 'CLOSED ⛔'}")
         st.write(f"**Answer revealed:** {'YES ✅' if gs['revealed'] else 'NO'}")
         st.write(f"**New teams allowed:** {'YES ✅' if gs['allow_new_teams'] else 'NO ⛔'}")
 
-    colr1, colr2 = st.columns([1, 5])
-    with colr1:
-        if st.button("🔄 Refresh scoreboard"):
-            st.rerun()
-    with colr2:
-        st.caption("Scoreboard refresh is manual (prevents Admin tab from getting stuck).")
+    if team_logged_in:
+        st.caption(f"Logged in as team: {st.session_state.get('team_name')}")
+    if is_admin:
+        st.caption("Logged in as Admin")
 
+    if gs["revealed"] and gs["answer_text"].strip():
+        st.divider()
+        st.markdown(f"### ✅ Official Answer: {gs['answer_text']}")
 
 # -----------------------------
-# Tab 2: Submit Answer (Teams)
+# Submit Answer (teams only)
 # -----------------------------
-with tab2:
-    st.subheader("Submit Your Answer")
-    gs = get_game_state(conn)
+if team_logged_in:
+    with tab_submit:
+        st.subheader("Submit Your Answer")
+        gs = get_game_state(conn)
 
-    if not team_logged_in:
-        st.info("Enter your team name + password in the sidebar to submit.")
-    else:
         if not gs["submissions_open"]:
             st.warning("Submissions are currently closed.")
         else:
@@ -477,7 +570,7 @@ with tab2:
                 if not answer_text.strip():
                     st.error("Answer can’t be empty.")
                 else:
-                    ok, msg = upsert_submission(conn, int(team_id), gs, answer_text.strip(), int(wager))
+                    ok, msg = upsert_submission(conn, int(st.session_state["team_id"]), gs, answer_text.strip(), int(wager))
                     (st.success if ok else st.error)(msg)
 
         if gs["revealed"] and gs["answer_text"].strip():
@@ -485,14 +578,11 @@ with tab2:
             st.markdown(f"### ✅ Official Answer: {gs['answer_text']}")
 
 # -----------------------------
-# Tab 3: Admin
+# Admin (admins only)
 # -----------------------------
-with tab3:
-    st.subheader("Admin Controls")
-
-    if not is_admin:
-        st.info("Enter the admin password in the sidebar to access host tools.")
-    else:
+if is_admin:
+    with tab_admin:
+        st.subheader("Admin Controls")
         gs = get_game_state(conn)
 
         # --- Settings ---
@@ -518,10 +608,21 @@ with tab3:
             st.write(f"**Team:** {selected_team['team_name']}")
             st.caption(f"Created: {selected_team['created_at']}")
 
-            new_pw = st.text_input("Set new password", type="password", key="admin_reset_pw")
-            if st.button("Reset Password"):
-                ok, msg = admin_set_team_password(conn, selected_team["id"], new_pw)
-                (st.success if ok else st.error)(msg)
+            col_pw1, col_pw2 = st.columns(2)
+            with col_pw1:
+                new_pw = st.text_input("Set new password", type="password", key="admin_reset_pw")
+                if st.button("Set Password"):
+                    ok, msg = admin_set_team_password(conn, selected_team["id"], new_pw)
+                    (st.success if ok else st.error)(msg)
+
+            with col_pw2:
+                if st.button("Generate Temp Password"):
+                    temp_pw = generate_temp_password(8)
+                    ok, msg = admin_set_team_password(conn, selected_team["id"], temp_pw)
+                    if ok:
+                        st.success(f"Temporary password for **{selected_team['team_name']}**: **{temp_pw}**")
+                    else:
+                        st.error(msg)
 
             cdel1, cdel2 = st.columns([1, 2])
             with cdel1:
@@ -560,9 +661,8 @@ with tab3:
         else:
             q_nums = [r["q_number"] for r in idx]
             min_q, max_q = min(q_nums), max(q_nums)
+            start = min_q - ((min_q - 1) % 3)  # aligns to 1,4,7,...
 
-            # start at nearest "1 mod 3" block start
-            start = min_q - ((min_q - 1) % 3)
             for block_start in range(start, max_q + 1, 3):
                 block_end = block_start + 2
                 block_rows = [r for r in idx if block_start <= r["q_number"] <= block_end]
@@ -575,21 +675,21 @@ with tab3:
 
         st.divider()
 
-        # --- Question setup & bank picker ---
+        # --- Question setup ---
         st.markdown("### Question Setup")
-
         left, right = st.columns([2, 1])
+
         with right:
-            st.markdown("#### Pick from Bank")
-            pick = st.number_input("Load question #", min_value=1, value=int(gs["current_question"]), step=1, key="pick_qnum")
-            if st.button("Load from Bank"):
+            st.markdown("#### Load from Bank")
+            default_pick = int(gs["current_question"])
+            pick = st.number_input("Question #", min_value=1, value=default_pick, step=1, key="pick_qnum")
+            if st.button("Load into Live Game"):
                 qrow = get_question_by_number(conn, int(pick))
                 if not qrow:
                     st.error("That question number isn’t in the bank.")
                 else:
-                    # Put into game_state question/answer text (category can be prefixed)
-                    q_text = f"[{qrow['category']}] {qrow['question']}"
-                    set_game_state(conn, question_text=q_text, answer_text=qrow["answer"])
+                    q_text_live = f"[{qrow['category']}] {qrow['question']}"
+                    set_game_state(conn, question_text=q_text_live, answer_text=qrow["answer"])
                     st.success("Loaded question/answer into live game.")
                     st.rerun()
 
@@ -620,10 +720,10 @@ with tab3:
 
         # --- Progress game ---
         st.markdown("### Progress Game")
+        gs = get_game_state(conn)
         col1, col2 = st.columns([2, 1])
 
         with col2:
-            gs = get_game_state(conn)
             new_round = st.number_input("Round", min_value=1, value=int(gs["current_round"]), step=1, key="round_set")
             new_q = st.number_input("Question", min_value=1, value=int(gs["current_question"]), step=1, key="q_set")
             new_half = st.selectbox("Half", [1, 2], index=0 if int(gs["half"]) == 1 else 1, key="half_set")
@@ -691,4 +791,3 @@ with tab3:
                                     st.rerun()
 
 conn.close()
-
