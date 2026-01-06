@@ -442,9 +442,13 @@ with tab1:
         st.write(f"**Answer revealed:** {'YES ✅' if gs['revealed'] else 'NO'}")
         st.write(f"**New teams allowed:** {'YES ✅' if gs['allow_new_teams'] else 'NO ⛔'}")
 
-    st.caption(f"Auto-refresh every {AUTO_REFRESH_SECONDS}s")
-    time.sleep(AUTO_REFRESH_SECONDS)
-    st.rerun()
+    colr1, colr2 = st.columns([1, 5])
+    with colr1:
+        if st.button("🔄 Refresh scoreboard"):
+            st.rerun()
+    with colr2:
+        st.caption("Scoreboard refresh is manual (prevents Admin tab from getting stuck).")
+
 
 # -----------------------------
 # Tab 2: Submit Answer (Teams)
