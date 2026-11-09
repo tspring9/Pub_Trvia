@@ -1,0 +1,165 @@
+/* Dark by default and always: this gets used in a dim bar, and a white
+   flash at 9pm is genuinely unpleasant. Tap targets are >=44px throughout. */
+:root {
+  --bg: #16110d;
+  --card: #221a14;
+  --line: #3a2d22;
+  --ink: #f4ece3;
+  --muted: #a9998a;
+  --accent: #e8a33d;
+  --ok: #5fb87a;
+  --bad: #d9705f;
+}
+
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font: 16px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.app { max-width: 640px; margin: 0 auto; padding: 16px; }
+
+header {
+  display: flex; align-items: center; gap: 10px;
+  padding: 4px 0 12px;
+}
+header h1 { font-size: 20px; margin: 0; flex: 1; }
+
+/* Connection indicator: grey when reconnecting, green when live. The one bit
+   of Streamlit-era anxiety worth keeping visible. */
+.dot { width: 9px; height: 9px; border-radius: 50%; background: var(--muted); }
+.dot.live { background: var(--ok); box-shadow: 0 0 8px var(--ok); }
+
+.card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 16px;
+  margin-bottom: 14px;
+}
+.card h2 { margin: 0 0 10px; font-size: 17px; }
+.card h3 { margin: 18px 0 8px; font-size: 15px; }
+
+input, textarea {
+  width: 100%; padding: 13px; margin: 0 0 10px;
+  background: #1b1410; color: var(--ink);
+  border: 1px solid var(--line); border-radius: 10px;
+  font-size: 16px; /* 16px stops iOS zooming on focus */
+  font-family: inherit;
+}
+input:focus, textarea:focus { outline: 2px solid var(--accent); border-color: var(--accent); }
+
+button {
+  font: inherit; cursor: pointer; border-radius: 10px;
+  min-height: 44px; padding: 11px 14px;
+  background: #2e241b; color: var(--ink); border: 1px solid var(--line);
+}
+button:active { transform: translateY(1px); }
+button:disabled { opacity: .45; cursor: not-allowed; }
+
+.big {
+  display: block; width: 100%; margin-bottom: 10px;
+  background: var(--accent); color: #241703;
+  border: none; font-weight: 700; font-size: 16px;
+}
+.ghost { display: block; width: 100%; background: transparent; margin-bottom: 8px; }
+.link { background: none; border: none; color: var(--muted); min-height: auto; padding: 4px; }
+
+.question { font-size: 19px; font-weight: 600; margin: 0 0 14px; }
+
+.wagers { display: flex; gap: 8px; margin-bottom: 14px; }
+.wager {
+  flex: 1; font-size: 19px; font-weight: 700; min-height: 54px;
+}
+.wager.on { background: var(--accent); color: #241703; border-color: var(--accent); }
+.wager:disabled { text-decoration: line-through; }
+
+.stage { color: var(--accent); font-weight: 700; margin: 0 0 6px; }
+.spot { display: flex; align-items: center; gap: 8px; }
+.spot span { color: var(--muted); width: 22px; margin-bottom: 10px; }
+.reveal ol { margin: 6px 0 0; padding-left: 22px; }
+.yours { display: inline-block; text-align: left; margin: 8px 0; color: var(--ink); }
+
+.subs li.halftime { display: block; }
+.halftime table { width: 100%; border-collapse: collapse; margin: 6px 0; font-size: 15px; }
+.halftime td { padding: 3px 8px 3px 0; vertical-align: top; }
+.halftime .row { margin: 6px 0 0; }
+
+.scores { list-style: none; margin: 0; padding: 0; counter-reset: rank; }
+.scores li {
+  display: flex; justify-content: space-between; gap: 10px;
+  padding: 10px 0; border-bottom: 1px solid var(--line);
+  counter-increment: rank;
+}
+.scores li::before { content: counter(rank) '.'; color: var(--muted); width: 22px; }
+.scores li span { flex: 1; }
+.scores li:last-child { border-bottom: none; }
+
+.subs { list-style: none; margin: 0; padding: 0; }
+.subs li {
+  display: flex; justify-content: space-between; align-items: flex-start; gap: 10px;
+  padding: 12px 0; border-bottom: 1px solid var(--line);
+}
+.subs li.done { opacity: .55; }
+.subs .ans { margin: 5px 0 0; font-size: 17px; }
+.subs button { min-width: 52px; font-size: 18px; }
+
+.row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 12px; }
+.grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px; }
+.grid .big { margin: 0; }
+
+.pill {
+  font-size: 12px; padding: 3px 9px; border-radius: 999px;
+  background: #2e241b; border: 1px solid var(--line); color: var(--muted);
+}
+.pill.open { background: #24382a; border-color: var(--ok); color: var(--ok); }
+.badge {
+  font-size: 12px; padding: 2px 8px; border-radius: 999px;
+  background: var(--accent); color: #241703; font-weight: 700;
+}
+
+.muted { color: var(--muted); font-size: 14px; }
+.err  { color: var(--bad); font-size: 14px; }
+.ok   { color: var(--ok);  font-size: 14px; }
+.closed { font-size: 17px; color: var(--muted); text-align: center; padding: 20px 0; }
+.reveal {
+  background: #24382a; border: 1px solid var(--ok); color: var(--ok);
+  padding: 12px; border-radius: 10px; font-size: 17px;
+}
+
+/* --- question bank --- */
+.bank { margin-top: 20px; padding-top: 4px; border-top: 1px solid var(--line); }
+.bank h3 { display: flex; align-items: center; gap: 8px; }
+
+/* A <label> wrapping a hidden file input, so it matches the other buttons. */
+.upload {
+  display: block; text-align: center; padding: 13px;
+  border: 1px dashed var(--line); border-radius: 10px;
+  cursor: pointer; margin-bottom: 8px;
+}
+.upload:hover { border-color: var(--accent); color: var(--accent); }
+
+.errbox {
+  background: #2e1a17; border: 1px solid var(--bad);
+  border-radius: 10px; padding: 10px 12px; margin-bottom: 10px;
+}
+.errbox ul { margin: 6px 0 0; padding-left: 18px; }
+.errbox li { margin-bottom: 3px; }
+
+.index { max-height: 320px; overflow-y: auto; margin-top: 8px; }
+.blk {
+  border: 1px solid var(--line); border-radius: 10px;
+  padding: 10px; margin-bottom: 8px;
+}
+.blk > strong { display: block; color: var(--muted); font-size: 13px; margin-bottom: 6px; }
+.qrow {
+  display: block; width: 100%; text-align: left;
+  background: transparent; border: none; padding: 9px 4px;
+  min-height: 40px; border-bottom: 1px solid var(--line);
+}
+.qrow:last-child { border-bottom: none; }
+.qrow:hover { color: var(--accent); }

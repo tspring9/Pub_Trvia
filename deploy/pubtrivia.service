@@ -1,0 +1,18 @@
+[Unit]
+Description=Pub Trivia (game night)
+After=network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=tomne93
+WorkingDirectory=/home/tomne93/Pub_Trvia/server
+EnvironmentFile=/home/tomne93/Pub_Trvia/.env.prod
+ExecStart=/usr/bin/node src/index.ts
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
