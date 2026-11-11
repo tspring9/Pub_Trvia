@@ -15,6 +15,7 @@ export const api = async (path, { method = 'GET', body, token } = {}) => {
   if (!res.ok) {
     const err = new Error(data.error ?? `Request failed (${res.status})`)
     err.status = res.status
+    err.data = data
     // CSV import returns a per-row list; keep it rather than collapsing to one line.
     if (Array.isArray(data.errors)) err.rows = data.errors
     throw err

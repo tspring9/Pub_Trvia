@@ -1,4 +1,4 @@
-import { q, partsOf, HALFTIME_BANK, FINAL_BANK } from './db.ts'
+import { q, partsOf, HALFTIME_BANK, FINAL_BANK, TIEBREAK_BANK } from './db.ts'
 
 export type BankRow = {
   q_number: number
@@ -48,6 +48,7 @@ function parseCsv(text: string): string[][] {
 const SPECIAL_NUMBERS: Record<string, number> = {
   h: HALFTIME_BANK, halftime: HALFTIME_BANK,
   f: FINAL_BANK, final: FINAL_BANK,
+  t: TIEBREAK_BANK, tiebreak: TIEBREAK_BANK, tiebreaker: TIEBREAK_BANK,
 }
 
 const CANON: Record<string, keyof BankRow> = {
@@ -108,7 +109,7 @@ export function parseQuestionCsv(text: string): { rows: BankRow[]; errors: strin
 
     if (!rawNum) { errors.push(`Line ${line}: Number is blank.`); return }
     if (special === undefined && (!Number.isInteger(num) || num < 1)) {
-      errors.push(`Line ${line}: Number must be a whole number 1 or greater, or Halftime or Final (got "${rawNum}").`)
+      errors.push(`Line ${line}: Number must be a whole number 1 or greater, or Halftime, Final or Tiebreaker (got "${rawNum}").`)
       return
     }
     if (seen.has(num)) {

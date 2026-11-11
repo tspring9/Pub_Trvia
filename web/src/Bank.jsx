@@ -39,18 +39,24 @@ export function Bank({ token, position }) {
     }
   }
 
-  const load = async (n, label = `question ${n}`) => {
+  const load = async (n, label = `question ${n}`, reset = false) => {
     setErrors([]); setLoadErr(''); setMsg('')
     try {
-      const r = await api('/api/admin/load-question', { method: 'POST', token, body: { q_number: n } })
-      setMsg(`Loaded ${label}${r.note ? ` — note: ${r.note}` : ''}. Submissions are closed.`)
-    } catch (e) { setLoadErr(e.message) }
+      await api('/api/admin/load-question', { method: 'POST', token, body: { q_number: n, reset_answers: reset } })
+      setMsg(`Loaded ${label}${reset ? ' and cleared the earlier answers' : ''}. Submissions are closed.`)
+    } catch (e) {
+      if (e.data?.needs_reset && window.confirm(
+        `${e.data.answers} team(s) already answered this question. Swap it and clear their answers?`,
+      )) return load(n, label, true)
+      setLoadErr(e.message)
+    }
   }
 
   // Halftime and the final are stored under reserved negative numbers.
   const specials = [
     { n: -1, label: 'Halftime' },
     { n: -2, label: 'Final question' },
+    { n: -3, label: 'Tiebreaker' },
   ].filter((s) => questions.some((r) => r.q_number === s.n))
   const numbered = questions.filter((r) => r.q_number > 0)
 
@@ -84,11 +90,15 @@ export function Bank({ token, position }) {
         the same Number. In Excel, save as CSV first.
       </p>
       <p className="muted">
-        Number 1–18 in play order, with backups from 19 up. Use <strong>Halftime</strong> or
-        {' '}<strong>Final</strong> as the Number for those two, and list the halftime answers
+        Number 1–18 in play order, with backups from 19 up. Use <strong>Halftime</strong>,
+        {' '}<strong>Tiebreaker</strong> or
+        {' '}<strong>Final</strong> as the Number for those three, and list the halftime answers
         in order with semicolons: A; B; C; D.
       </p>
 
+      {questions.length > 0 && !questions.some((r) => r.q_number === -3) && (
+        <p className="err">No tiebreaker is loaded. Add a row with Number "Tiebreaker" before the game.</p>
+      )}
       {msg && <p className="ok">{msg}</p>}
       {loadErr && <p className="err">{loadErr}</p>}
       {errors.length > 0 && (
@@ -119,7 +129,7 @@ export function Bank({ token, position }) {
             <div className="index">
               {specials.length > 0 && (
                 <div className="blk">
-                  <strong>Halftime and final</strong>
+                  <strong>Halftime, final and tiebreaker</strong>
                   {specials.map((s) => (
                     <button key={s.n} className="qrow" onClick={() => load(s.n, s.label)}>
                       {s.label}

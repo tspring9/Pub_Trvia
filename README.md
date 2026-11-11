@@ -70,14 +70,16 @@ PGPASSWORD=... psql -h 127.0.0.1 -U pubtrivia -d pubtrivia_dev -f db/schema.sql
 Deploy from the laptop:
 
 ```sh
-tar --exclude=.git --exclude=node_modules --exclude=dist -czf - . \
-  | ssh leaguelens-sbx 'tar -xzf - -C ~/Pub_Trvia'
+git -c core.autocrlf=false archive --format=tar HEAD \
+  | ssh leaguelens-sbx 'tar -xf - -C ~/Pub_Trvia'
 ssh leaguelens-sbx 'cd ~/Pub_Trvia/server && npm install'
 ssh leaguelens-sbx 'cd ~/Pub_Trvia/web && npm install && PUBLIC_BASE=/trivia-dev npm run build'
 ssh leaguelens-sbx 'sudo systemctl restart pubtrivia-dev'
 ```
 
 `PUBLIC_BASE` must match the funnel path — it is compiled into the asset URLs.
+This deploys what is committed, with LF line endings, so commit first. A Windows
+working copy has CRLF.
 
 Service:
 
@@ -114,8 +116,11 @@ Point `.env` at `pubtrivia_dev` so you are never developing against game data.
 
 ## Operational notes
 
-- **Backups are not set up.** Losing scores mid-game is the one unrecoverable
-  failure here, so add a `pg_dump` cron before you play for real.
+- **Backups** run every 5 minutes through `deploy/pubtrivia-backup.timer`, into
+  `~/backups-pubtrivia`, and keep a week. The script's header has the restore steps.
+- **Limits.** 5 wrong host passwords, or 10 per team, locks that address for 15
+  minutes. A signed-in host is unaffected. Sessions end after 12 idle hours. A game
+  holds up to 50 teams, with names up to 40 characters and answers up to 300.
 - **Your house is the single point of failure.** Power or internet dropping at 8pm
   stops the game. Accepted tradeoff for running it yourself.
 - **Funnel is not for heavy traffic.** Fine for ~15 phones exchanging small JSON.
@@ -132,8 +137,18 @@ Point `.env` at `pubtrivia_dev` so you are never developing against game data.
   question 1 is #4, and the last regular question is #18. Loading a different bank
   question is a one-off swap and does not shift the rest.
 - Rounds 1-3 are half 1 and rounds 4-6 are half 2, set by Next and Back.
-- Teams only see a question once the host has opened or revealed it.
-- New game clears answers and scores, keeping or removing teams, and puts the final
+- Teams only see a question once the host has opened or revealed it, and it stays
+  up after closing. The fun fact appears once the answer is revealed.
+- Opening a question starts the countdown (default 3 minutes, 0 turns it off), and
+  the server closes it at zero. The host can add 30 seconds.
+- The public scoreboard only updates at the end of a round: when the host moves on
+  from a round's third question or halftime, taps "Update the scoreboard now", or
+  shows the winners. The host always sees live totals.
+- Changing a question that already has answers warns the host about clearing them.
+- `/display` is a read-only screen for the room: join code, questions, standings
+  and winners.
+- New game clears answers and scores, keeping or removing teams, and puts the timer
+  back to 3 minutes and the final
   wager limit back to 15. The bank stays.
 - One submission per team per question; editable until the host grades it.
 
@@ -148,4 +163,12 @@ in the right spot, worth 2 points each, and a miss costs nothing.
 **Final.** The CSV row has Number `Final`. Teams bet from 0 up to the host's limit
 (default 15), and never more than their banked points. A correct answer adds the bet
 and a miss subtracts it. Bet and answer go in together, and can be changed until the
-host grades them.
+host grades them. A team's result stays hidden until the host reveals the answer.
+
+**Tiebreaker.** The CSV row has Number `Tiebreaker`, and the host is warned if it is
+missing. After the final, Next becomes Tiebreaker only if first place is tied. Only
+the tied teams answer, and the host picks the winner, who ranks first without any
+change to the scores.
+
+**Winners.** The host triggers the winner screen after the final, which also updates
+the scoreboard. It can be hidden again to correct a grade and shown again.

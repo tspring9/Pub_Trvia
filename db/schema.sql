@@ -103,4 +103,34 @@ ALTER TABLE submissions ADD CONSTRAINT wager_valid_for_half CHECK (
 CREATE UNIQUE INDEX IF NOT EXISTS submissions_one_wager_per_round
     ON submissions (team_id, round_num, wager_points) WHERE question_num <= 3;
 
+-- The night around the questions.
+--   * question_shown   -> the question stays on screen after the host closes it
+--   * note_text        -> the fun fact, shown to the room once the answer is revealed
+--   * timer_seconds    -> countdown length, set by the host; 0 turns it off
+--   * deadline         -> when the open question closes itself
+--   * show_winners     -> the host's trigger for the winner screen
+--   * scoreboard_label -> what the public scoreboard is current as of
+--   * tiebreak_winner  -> the team the host picked after a tiebreaker
+--   * published_score  -> the public score, updated only at the end of a round
+ALTER TABLE game_state ADD COLUMN IF NOT EXISTS question_shown boolean NOT NULL DEFAULT false;
+ALTER TABLE game_state ADD COLUMN IF NOT EXISTS note_text text NOT NULL DEFAULT '';
+ALTER TABLE game_state ADD COLUMN IF NOT EXISTS timer_seconds integer NOT NULL DEFAULT 180
+    CHECK (timer_seconds >= 0);
+ALTER TABLE game_state ADD COLUMN IF NOT EXISTS deadline timestamptz;
+ALTER TABLE game_state ADD COLUMN IF NOT EXISTS show_winners boolean NOT NULL DEFAULT false;
+ALTER TABLE game_state ADD COLUMN IF NOT EXISTS scoreboard_label text NOT NULL DEFAULT '';
+ALTER TABLE game_state ADD COLUMN IF NOT EXISTS tiebreak_winner integer
+    REFERENCES teams(id) ON DELETE SET NULL;
+ALTER TABLE teams      ADD COLUMN IF NOT EXISTS published_score integer NOT NULL DEFAULT 0;
+
+-- The tiebreaker is round 6 question 5, and like halftime it has no wager.
+ALTER TABLE submissions DROP CONSTRAINT IF EXISTS wager_valid_for_half;
+ALTER TABLE submissions ADD CONSTRAINT wager_valid_for_half CHECK (
+    wager_points >= 0 AND (
+        question_num >= 4 OR
+        (half = 1 AND wager_points IN (1, 3, 5)) OR
+        (half = 2 AND wager_points IN (2, 4, 6))
+    )
+);
+
 COMMIT;

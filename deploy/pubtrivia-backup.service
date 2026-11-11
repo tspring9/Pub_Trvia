@@ -1,0 +1,9 @@
+[Unit]
+Description=Pub Trivia database backup
+After=postgresql.service
+
+[Service]
+Type=oneshot
+User=tomne93
+EnvironmentFile=/home/tomne93/Pub_Trvia/.env.dev
+ExecStart=/bin/bash /home/tomne93/Pub_Trvia/deploy/pubtrivia-backup.sh

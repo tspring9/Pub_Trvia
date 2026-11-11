@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { api } from './live.js'
+import { Timer } from './Timer.jsx'
 
 const points = (n) => `${n} point${Math.abs(n) === 1 ? '' : 's'}`
 
@@ -61,6 +62,7 @@ export function TeamQuestion({ state, auth, onSignedOut }) {
   const ready =
     state.kind === 'halftime' ? boxes.some((b) => b.trim())
     : state.kind === 'final' ? answer.trim() && wager !== null && wager !== ''
+    : state.kind === 'tiebreaker' ? answer.trim()
     : answer.trim() && wager
 
   return (
@@ -68,9 +70,14 @@ export function TeamQuestion({ state, auth, onSignedOut }) {
       {state.kind !== 'regular' && <p className="stage">{state.label}</p>}
       {state.question_text && <p className="question">{state.question_text}</p>}
 
-      {state.revealed && state.answer_text && <Official state={state} />}
+      <Timer state={state} />
 
-      {graded ? (
+      {state.revealed && state.answer_text && <Official state={state} />}
+      {state.note_text && <p className="note">💡 {state.note_text}</p>}
+
+      {state.kind === 'tiebreaker' && !state.tiebreak_teams.includes(auth.team_name) ? (
+        <p className="closed">Tiebreaker between {state.tiebreak_teams.join(' & ')}. Sit tight.</p>
+      ) : graded ? (
         <Result kind={state.kind} mine={mine} />
       ) : state.submissions_open && me ? (
         <form onSubmit={submit}>
@@ -191,6 +198,8 @@ function Waiting({ kind, mine }) {
   }
   const label = kind === 'final' ? 'with a bet of' : 'for'
   return (
-    <p className="closed">Your answer: "{mine.submitted_answer}" {label} {mine.wager_points}. Waiting on the host.</p>
+    <p className="closed">
+      Your answer: "{mine.submitted_answer}"{kind === 'tiebreaker' ? '' : ` ${label} ${mine.wager_points}`}. Waiting on the host.
+    </p>
   )
 }

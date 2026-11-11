@@ -163,3 +163,55 @@ button:disabled { opacity: .45; cursor: not-allowed; }
 }
 .qrow:last-child { border-bottom: none; }
 .qrow:hover { color: var(--accent); }
+
+/* --- timer, fun fact, host extras --- */
+.timer { font-size: 22px; font-weight: 700; margin: 0 0 12px; font-variant-numeric: tabular-nums; }
+.timer.urgent { color: var(--bad); }
+.note { color: var(--muted); font-size: 15px; }
+.linkbtn { color: var(--accent); text-decoration: none; padding: 4px; }
+.joinbox { text-align: center; margin-bottom: 12px; }
+.qr { background: #fff; border-radius: 10px; display: block; margin: 0 auto; max-width: 100%; height: auto; }
+.team-line { margin: 2px 0 0; }
+.suggest { border-color: var(--ok); color: var(--ok); }
+.spot-match td { color: var(--ok); }
+
+/* --- winner screen --- */
+.winners { text-align: center; }
+.winners .trophy { font-size: 56px; margin: 4px 0; }
+.winners .champ { font-size: 28px; font-weight: 800; color: var(--accent); margin: 0 0 16px; }
+.winners .scores { text-align: left; }
+
+/* --- room display: sized for reading across a bar --- */
+.display {
+  min-height: 100vh; padding: 4vh 5vw; box-sizing: border-box;
+  display: flex; flex-direction: column; justify-content: center;
+}
+.display h1 { font-size: clamp(32px, 6vw, 88px); margin: 0; }
+.d-wait { font-size: 32px; text-align: center; color: var(--muted); }
+.d-sub { font-size: clamp(20px, 2.6vw, 40px); color: var(--muted); margin: 12px 0; }
+.d-url { font-size: clamp(14px, 1.4vw, 22px); color: var(--muted); word-break: break-all; }
+.d-lobby { display: flex; align-items: center; justify-content: space-between; gap: 5vw; flex-wrap: wrap; }
+.d-lobby > div { flex: 1; min-width: 280px; }
+.d-teams { list-style: none; padding: 0; margin: 16px 0 0; display: flex; flex-wrap: wrap; gap: 10px; }
+.d-teams li {
+  font-size: clamp(18px, 2vw, 32px); padding: 6px 18px;
+  background: var(--card); border: 1px solid var(--line); border-radius: 999px;
+}
+.d-top { display: flex; justify-content: space-between; align-items: center; gap: 20px; }
+.d-label { font-size: clamp(22px, 3vw, 48px); color: var(--accent); font-weight: 700; }
+.d-top .timer { font-size: clamp(32px, 5vw, 80px); margin: 0; }
+.d-text { font-size: clamp(30px, 5vw, 84px); font-weight: 700; line-height: 1.2; margin: 4vh 0; }
+.d-answer {
+  background: #24382a; border: 1px solid var(--ok); color: var(--ok);
+  border-radius: 16px; padding: 2vh 3vw; font-size: clamp(28px, 4vw, 68px); font-weight: 700;
+}
+.d-answer p { margin: 0; }
+.d-answer ol { margin: 0; padding-left: 1.3em; }
+.d-answer .d-note { font-size: clamp(18px, 2.2vw, 36px); font-weight: 400; color: var(--ink); margin-top: 2vh; }
+.d-standings .scores li { font-size: clamp(22px, 3vw, 48px); }
+.display .winners { background: none; border: none; }
+.display .winners .trophy { font-size: clamp(64px, 10vw, 160px); }
+.display .winners h2 { font-size: clamp(32px, 5vw, 80px); }
+.display .winners .champ { font-size: clamp(44px, 8vw, 130px); }
+.display .winners .scores { max-width: 900px; margin: 0 auto; }
+.display .winners .scores li { font-size: clamp(20px, 2.6vw, 40px); }

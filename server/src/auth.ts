@@ -33,6 +33,7 @@ export type Session = { token: string; team_id: number | null; is_admin: boolean
 export async function createSession(
   subject: { teamId: number } | { admin: true },
 ): Promise<string> {
+  await q(`DELETE FROM sessions WHERE last_seen < now() - interval '7 days'`)
   const token = randomBytes(32).toString('base64url')
   const teamId = 'teamId' in subject ? subject.teamId : null
   await q(
@@ -48,7 +49,8 @@ export async function sessionFrom(authHeader?: string): Promise<Session | null> 
   const token = authHeader?.replace(/^Bearer\s+/i, '')
   if (!token) return null
   const rows = await q<Session>(
-    `UPDATE sessions SET last_seen = now() WHERE token = $1
+    `UPDATE sessions SET last_seen = now()
+     WHERE token = $1 AND last_seen > now() - interval '12 hours'
      RETURNING token, team_id, is_admin`,
     [token],
   )
