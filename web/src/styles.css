@@ -181,37 +181,46 @@ button:disabled { opacity: .45; cursor: not-allowed; }
 .winners .champ { font-size: 28px; font-weight: 800; color: var(--accent); margin: 0 0 16px; }
 .winners .scores { text-align: left; }
 
-/* --- room display: sized for reading across a bar --- */
+/* --- room display: sized for reading across a bar ---
+   Sizes follow the smaller of width and height, so a 16:9 TV never runs a long
+   question, a five-item halftime answer or a full scoreboard off the bottom. */
 .display {
-  min-height: 100vh; padding: 4vh 5vw; box-sizing: border-box;
+  height: 100vh; overflow: hidden; padding: 4vh 5vw; box-sizing: border-box;
   display: flex; flex-direction: column; justify-content: center;
 }
-.display h1 { font-size: clamp(32px, 6vw, 88px); margin: 0; }
+.display h1 { font-size: clamp(32px, min(6vw, 10vh), 88px); margin: 0; }
 .d-wait { font-size: 32px; text-align: center; color: var(--muted); }
-.d-sub { font-size: clamp(20px, 2.6vw, 40px); color: var(--muted); margin: 12px 0; }
+.d-sub { font-size: clamp(18px, min(2.6vw, 4.4vh), 40px); color: var(--muted); margin: 1.6vh 0; }
 .d-url { font-size: clamp(14px, 1.4vw, 22px); color: var(--muted); word-break: break-all; }
 .d-lobby { display: flex; align-items: center; justify-content: space-between; gap: 5vw; flex-wrap: wrap; }
 .d-lobby > div { flex: 1; min-width: 280px; }
 .d-teams { list-style: none; padding: 0; margin: 16px 0 0; display: flex; flex-wrap: wrap; gap: 10px; }
 .d-teams li {
-  font-size: clamp(18px, 2vw, 32px); padding: 6px 18px;
+  font-size: clamp(16px, min(2vw, 3.4vh), 32px); padding: 6px 18px;
   background: var(--card); border: 1px solid var(--line); border-radius: 999px;
 }
 .d-top { display: flex; justify-content: space-between; align-items: center; gap: 20px; }
-.d-label { font-size: clamp(22px, 3vw, 48px); color: var(--accent); font-weight: 700; }
-.d-top .timer { font-size: clamp(32px, 5vw, 80px); margin: 0; }
-.d-text { font-size: clamp(30px, 5vw, 84px); font-weight: 700; line-height: 1.2; margin: 4vh 0; }
+.d-label { font-size: clamp(20px, min(3vw, 5vh), 48px); color: var(--accent); font-weight: 700; }
+.d-top .timer { font-size: clamp(28px, min(5vw, 8.5vh), 80px); margin: 0; }
+.d-text { font-size: clamp(26px, min(4.6vw, 7.4vh), 84px); font-weight: 700; line-height: 1.18; margin: 3vh 0; }
 .d-answer {
   background: #24382a; border: 1px solid var(--ok); color: var(--ok);
-  border-radius: 16px; padding: 2vh 3vw; font-size: clamp(28px, 4vw, 68px); font-weight: 700;
+  border-radius: 16px; padding: 2vh 3vw; font-size: clamp(24px, min(4vw, 7vh), 68px); font-weight: 700;
 }
 .d-answer p { margin: 0; }
-.d-answer ol { margin: 0; padding-left: 1.3em; }
-.d-answer .d-note { font-size: clamp(18px, 2.2vw, 36px); font-weight: 400; color: var(--ink); margin-top: 2vh; }
-.d-standings .scores li { font-size: clamp(22px, 3vw, 48px); }
-.display .winners { background: none; border: none; }
-.display .winners .trophy { font-size: clamp(64px, 10vw, 160px); }
-.display .winners h2 { font-size: clamp(32px, 5vw, 80px); }
-.display .winners .champ { font-size: clamp(44px, 8vw, 130px); }
+.d-answer ol {
+  margin: 0; padding-left: 1.3em; font-size: clamp(20px, min(3vw, 5vh), 52px);
+  columns: 2; column-gap: 4vw;
+}
+.d-answer .d-note { font-size: clamp(16px, min(2.2vw, 3.6vh), 36px); font-weight: 400; color: var(--ink); margin-top: 1.6vh; }
+.d-standings .scores li { font-size: clamp(18px, min(3vw, 4.4vh), 48px); padding: 0.8vh 0; }
+/* A big night splits the standings into two columns rather than scrolling. */
+.d-standings .scores:has(li:nth-child(9)) { display: grid; grid-template-columns: 1fr 1fr; column-gap: 4vw; }
+.display .winners { background: none; border: none; padding: 0; margin: 0; }
+.display .winners .trophy { font-size: clamp(48px, min(10vw, 12vh), 160px); margin: 0; }
+.display .winners h2 { font-size: clamp(28px, min(5vw, 7vh), 80px); margin: 0; }
+.display .winners .champ { font-size: clamp(40px, min(8vw, 11vh), 130px); margin: 0 0 2vh; }
 .display .winners .scores { max-width: 900px; margin: 0 auto; }
-.display .winners .scores li { font-size: clamp(20px, 2.6vw, 40px); }
+.display .winners .scores li { font-size: clamp(18px, min(2.6vw, 4vh), 40px); padding: 0.7vh 0; }
+/* The full list is on every phone; the TV shows the top of it. */
+.display .winners .scores li:nth-child(n+7) { display: none; }

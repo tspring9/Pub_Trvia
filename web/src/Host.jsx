@@ -294,7 +294,7 @@ export function Host({ state, token, onSignedOut }) {
       )}
 
       <div className="bank">
-        <h3>Live scores <span className="pill">only you see these</span></h3>
+        <h3 className="live-title">Live scores <span className="pill">only you see these</span></h3>
         <ol className="scores">
           {(full?.live_scores ?? []).map((t) => (
             <li key={t.id}><span>{t.team_name}</span><strong>{t.score}</strong></li>
