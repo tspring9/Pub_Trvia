@@ -150,7 +150,11 @@ Point `.env` at `pubtrivia_dev` so you are never developing against game data.
 - "Review questions" in the host console lists the whole lineup in play order, with
   every answer and fun fact, and flags anything missing. The host can edit, swap two
   questions' places, delete, or add a backup there; editing the question in play
-  updates it on every screen.
+  updates it on every screen. Its "Swap with" list groups choices as Active
+  questions, then Easy, Intermediate and Hard backups, shown as "Category - Question".
+- Backups can carry a difficulty: an optional CSV column `Difficulty` with Easy,
+  Intermediate (or Medium) or Hard. A file without that column leaves existing
+  difficulties alone.
 - `/display` is a read-only screen for the room: join code, questions, standings
   and winners.
 - New game clears answers and scores, keeping or removing teams, and puts the timer

@@ -238,3 +238,14 @@ button:disabled { opacity: .45; cursor: not-allowed; }
   background: #2e241b; color: var(--ink); border: 1px solid var(--line); font: inherit;
 }
 .editor { margin-top: 6px; }
+.lineup > li.group-head {
+  border: none; padding: 14px 2px 2px; margin: 0;
+  color: var(--accent); font-weight: 700; font-size: 14px; text-transform: uppercase; letter-spacing: .04em;
+}
+.pill.level-easy { color: var(--ok); border-color: var(--ok); }
+.pill.level-intermediate { color: var(--accent); border-color: var(--accent); }
+.pill.level-hard { color: var(--bad); border-color: var(--bad); }
+.editor select {
+  width: 100%; min-height: 44px; margin: 0 0 10px; padding: 0 10px; border-radius: 10px;
+  background: #1b1410; color: var(--ink); border: 1px solid var(--line); font: inherit;
+}

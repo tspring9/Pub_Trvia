@@ -139,4 +139,9 @@ ALTER TABLE game_state ADD COLUMN IF NOT EXISTS rounds_half1 integer NOT NULL DE
 ALTER TABLE game_state ADD COLUMN IF NOT EXISTS rounds_half2 integer NOT NULL DEFAULT 3
     CHECK (rounds_half2 BETWEEN 1 AND 6);
 
+-- Backups can be marked Easy, Intermediate or Hard, which groups them in the
+-- host's swap list.
+ALTER TABLE question_bank ADD COLUMN IF NOT EXISTS difficulty text
+    CHECK (difficulty IN ('easy', 'intermediate', 'hard'));
+
 COMMIT;

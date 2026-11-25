@@ -6,6 +6,17 @@ export type BankRow = {
   question: string
   answer: string
   note: string
+  // Only for backups: which bucket the host picks a swap from. Null otherwise.
+  difficulty: Difficulty | null
+}
+
+export type Difficulty = 'easy' | 'intermediate' | 'hard'
+export const DIFFICULTIES: Difficulty[] = ['easy', 'intermediate', 'hard']
+const asDifficulty = (text: string): Difficulty | null | undefined => {
+  const t = text.trim().toLowerCase()
+  if (!t) return null
+  if (t === 'medium') return 'intermediate'
+  return (DIFFICULTIES as string[]).includes(t) ? (t as Difficulty) : undefined
 }
 
 // A real CSV parser, because question text contains commas ("Which city, in
@@ -57,6 +68,7 @@ const CANON: Record<string, keyof BankRow> = {
   question: 'question',
   answer: 'answer',
   note: 'note', notes: 'note',
+  difficulty: 'difficulty', level: 'difficulty',
 }
 
 export function parseQuestionCsv(text: string): { rows: BankRow[]; errors: string[] } {
@@ -90,7 +102,7 @@ export function parseQuestionCsv(text: string): { rows: BankRow[]; errors: strin
       errors: [
         `Missing required column(s): ${missing.map((m) => pretty[m]).join(', ')}.`,
         `Found: ${table[0].map((h) => h.trim()).filter(Boolean).join(', ') || '(nothing)'}.`,
-        'Expected columns: Number, Category, Question, Answer, and optionally Note.',
+        'Expected columns: Number, Category, Question, Answer, and optionally Note and Difficulty.',
       ],
     }
   }
@@ -123,6 +135,12 @@ export function parseQuestionCsv(text: string): { rows: BankRow[]; errors: strin
       question: cell(r, 'question'),
       answer: cell(r, 'answer'),
       note: cell(r, 'note'),
+      difficulty: asDifficulty(cell(r, 'difficulty')) ?? null,
+    }
+
+    if (asDifficulty(cell(r, 'difficulty')) === undefined) {
+      errors.push(`Line ${line} (question ${rawNum}): Difficulty must be Easy, Intermediate or Hard, or blank.`)
+      return
     }
 
     const blank = (['category', 'question', 'answer'] as const).filter((k) => !row[k])
@@ -151,14 +169,15 @@ export async function upsertQuestionBank(rows: BankRow[]): Promise<number> {
     await client.query('BEGIN')
     for (const r of rows) {
       await client.query(
-        `INSERT INTO question_bank (q_number, category, question, answer, note)
-         VALUES ($1, $2, $3, $4, $5)
+        `INSERT INTO question_bank (q_number, category, question, answer, note, difficulty)
+         VALUES ($1, $2, $3, $4, $5, $6)
          ON CONFLICT (q_number) DO UPDATE SET
-           category = excluded.category,
-           question = excluded.question,
-           answer   = excluded.answer,
-           note     = excluded.note`,
-        [r.q_number, r.category, r.question, r.answer, r.note || null],
+           category   = excluded.category,
+           question   = excluded.question,
+           answer     = excluded.answer,
+           note       = excluded.note,
+           difficulty = COALESCE(excluded.difficulty, question_bank.difficulty)`,
+        [r.q_number, r.category, r.question, r.answer, r.note || null, r.difficulty],
       )
     }
     await client.query('COMMIT')
@@ -190,13 +209,18 @@ export const MAX_QUESTION = 2000
 export const MAX_FIELD = 500
 
 export const bankAll = () =>
-  q<BankRow>('SELECT q_number, category, question, answer, note FROM question_bank ORDER BY q_number ASC')
+  q<BankRow>('SELECT q_number, category, question, answer, note, difficulty FROM question_bank ORDER BY q_number ASC')
 
 // Checks one row the host typed in. Returns the cleaned row, or an error.
 export function cleanBankRow(n: number, body: Record<string, unknown>):
   { row: BankRow } | { error: string } {
   const text = (k: string) => String(body[k] ?? '').trim()
-  const row = { q_number: n, category: text('category'), question: text('question'), answer: text('answer'), note: text('note') }
+  const difficulty = asDifficulty(text('difficulty'))
+  if (difficulty === undefined) return { error: 'Difficulty must be Easy, Intermediate or Hard, or none.' }
+  const row = {
+    q_number: n, category: text('category'), question: text('question'),
+    answer: text('answer'), note: text('note'), difficulty,
+  }
   if (!row.category || !row.question || !row.answer)
     return { error: 'Category, question and answer are all needed.' }
   if (row.question.length > MAX_QUESTION || row.category.length > MAX_FIELD ||
@@ -209,12 +233,12 @@ export function cleanBankRow(n: number, body: Record<string, unknown>):
 
 export const saveBankRow = (r: BankRow) =>
   q(
-    `INSERT INTO question_bank (q_number, category, question, answer, note)
-     VALUES ($1, $2, $3, $4, $5)
+    `INSERT INTO question_bank (q_number, category, question, answer, note, difficulty)
+     VALUES ($1, $2, $3, $4, $5, $6)
      ON CONFLICT (q_number) DO UPDATE SET
        category = excluded.category, question = excluded.question,
-       answer = excluded.answer, note = excluded.note`,
-    [r.q_number, r.category, r.question, r.answer, r.note || null],
+       answer = excluded.answer, note = excluded.note, difficulty = excluded.difficulty`,
+    [r.q_number, r.category, r.question, r.answer, r.note || null, r.difficulty],
   )
 
 export const deleteBankRow = (n: number) =>

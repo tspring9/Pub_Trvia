@@ -5,6 +5,16 @@ const HALFTIME = -1
 const FINAL = -2
 const TIEBREAK = -3
 
+// Backups are grouped by how hard they are, so a swap can match the room.
+const LEVELS = [
+  { key: 'easy', label: 'Easy' },
+  { key: 'intermediate', label: 'Intermediate' },
+  { key: 'hard', label: 'Hard' },
+  { key: null, label: 'Other backups' },
+]
+const levelLabel = (d) => LEVELS.find((l) => l.key === (d ?? null)).label
+const short = (text, n = 70) => (text.length > n ? text.slice(0, n - 1) + '…' : text)
+
 // The lineup in play order, from the host's rounds setting: each round's three
 // numbered questions, halftime after the first half, then the final, the
 // tiebreaker and any backups.
@@ -19,8 +29,12 @@ function lineup(state, questions) {
   }
   slots.push({ n: FINAL, label: 'Final question', row: byNumber.get(FINAL) })
   slots.push({ n: TIEBREAK, label: 'Tiebreaker', row: byNumber.get(TIEBREAK) })
-  const backups = questions.filter((r) => r.q_number > state.regular_count)
-  for (const r of backups) slots.push({ n: r.q_number, label: `Backup #${r.q_number}`, row: r, backup: true })
+  for (const level of LEVELS) {
+    const group = questions.filter((r) => r.q_number > state.regular_count && (r.difficulty ?? null) === level.key)
+    if (!group.length) continue
+    slots.push({ header: level.label, n: `h-${level.label}` })
+    for (const r of group) slots.push({ n: r.q_number, label: `Backup #${r.q_number}`, row: r, backup: true })
+  }
   return slots
 }
 
@@ -71,11 +85,12 @@ export function Review({ state, token, onChanged }) {
   }
 
   const slots = lineup(state, questions)
+  const items = slots.filter((s) => !s.header)
   const numbered = questions.filter((r) => r.q_number > 0).map((r) => r.q_number)
   const nextBackup = Math.max(state.regular_count, ...numbered) + 1
 
   const problems = []
-  const empty = slots.filter((s) => !s.row && !s.backup).map((s) => s.label)
+  const empty = items.filter((s) => !s.row && !s.backup).map((s) => s.label)
   if (empty.length) problems.push(`Nothing loaded for: ${empty.join(', ')}.`)
   const ht = questions.find((r) => r.q_number === HALFTIME)
   if (ht && !halftimeOk(ht.answer)) problems.push('The halftime answer needs its spots separated by semicolons.')
@@ -96,18 +111,21 @@ export function Review({ state, token, onChanged }) {
           {msg && <p className="ok">{msg}</p>}
 
           <ol className="lineup">
-            {slots.map((slot) => (
+            {slots.map((slot) => slot.header ? (
+              <li key={slot.n} className="group-head">{slot.header} backups</li>
+            ) : (
               <li key={slot.n} className={current === slot.n ? 'in-play' : ''}>
                 <div className="slot-head">
                   <strong>{slot.label}</strong>
                   {slot.n > 0 && !slot.backup && <span className="pill">#{slot.n}</span>}
                   {current === slot.n && <span className="pill open">in play</span>}
                   {slot.row && <span className="pill">{slot.row.category}</span>}
+                  {slot.backup && <span className={`pill level-${slot.row.difficulty ?? 'none'}`}>{levelLabel(slot.row.difficulty)}</span>}
                 </div>
 
                 {editing === slot.n ? (
                   <Editor
-                    row={slot.row} halftime={slot.n === HALFTIME}
+                    row={slot.row} halftime={slot.n === HALFTIME} levels={slot.n > 0}
                     onSave={(fields) => save(slot.n, fields)} onCancel={() => setEditing(null)}
                   />
                 ) : slot.row ? (
@@ -125,9 +143,23 @@ export function Review({ state, token, onChanged }) {
                           onChange={(e) => e.target.value && swap(slot.n, Number(e.target.value))}
                         >
                           <option value="">Swap with…</option>
-                          {slots.filter((s) => s.n > 0 && s.n !== slot.n).map((s) => (
-                            <option key={s.n} value={s.n}>{s.label}{s.row ? `: ${s.row.question.slice(0, 40)}` : ' (empty)'}</option>
-                          ))}
+                          <optgroup label="Active questions">
+                            {items.filter((s) => s.n > 0 && !s.backup && s.n !== slot.n).map((s) => (
+                              <option key={s.n} value={s.n}>
+                                {s.label}{s.row ? `: ${short(s.row.question, 50)}` : ' (empty)'}
+                              </option>
+                            ))}
+                          </optgroup>
+                          {LEVELS.map((level) => {
+                            const group = items.filter((s) => s.backup && s.n !== slot.n && (s.row.difficulty ?? null) === level.key)
+                            return group.length > 0 && (
+                              <optgroup key={level.label} label={level.label}>
+                                {group.map((s) => (
+                                  <option key={s.n} value={s.n}>{s.row.category} - {short(s.row.question)}</option>
+                                ))}
+                              </optgroup>
+                            )
+                          })}
                         </select>
                       )}
                       <button onClick={() => remove(slot)}>Delete</button>
@@ -144,7 +176,7 @@ export function Review({ state, token, onChanged }) {
 
             <li>
               {editing === 'new' ? (
-                <Editor row={null} halftime={false} onSave={(fields) => save(nextBackup, fields)} onCancel={() => setEditing(null)} />
+                <Editor row={null} halftime={false} levels onSave={(fields) => save(nextBackup, fields)} onCancel={() => setEditing(null)} />
               ) : (
                 <button className="ghost" onClick={() => setEditing('new')}>+ Add a backup (#{nextBackup})</button>
               )}
@@ -156,10 +188,10 @@ export function Review({ state, token, onChanged }) {
   )
 }
 
-function Editor({ row, halftime, onSave, onCancel }) {
+function Editor({ row, halftime, levels, onSave, onCancel }) {
   const [fields, setFields] = useState({
     category: row?.category ?? '', question: row?.question ?? '',
-    answer: row?.answer ?? '', note: row?.note ?? '',
+    answer: row?.answer ?? '', note: row?.note ?? '', difficulty: row?.difficulty ?? '',
   })
   const set = (k) => (e) => setFields({ ...fields, [k]: e.target.value })
 
@@ -172,6 +204,14 @@ function Editor({ row, halftime, onSave, onCancel }) {
         value={fields.answer} onChange={set('answer')} required
       />
       <textarea rows={2} placeholder="Fun fact (optional)" value={fields.note} onChange={set('note')} />
+      {levels && (
+        <select value={fields.difficulty} onChange={set('difficulty')} aria-label="Difficulty">
+          <option value="">No difficulty</option>
+          <option value="easy">Easy</option>
+          <option value="intermediate">Intermediate</option>
+          <option value="hard">Hard</option>
+        </select>
+      )}
       <div className="row">
         <button type="submit" className="wager on">Save</button>
         <button type="button" onClick={onCancel}>Cancel</button>
