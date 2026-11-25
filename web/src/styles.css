@@ -249,3 +249,26 @@ button:disabled { opacity: .45; cursor: not-allowed; }
   width: 100%; min-height: 44px; margin: 0 0 10px; padding: 0 10px; border-radius: 10px;
   background: #1b1410; color: var(--ink); border: 1px solid var(--line); font: inherit;
 }
+
+/* --- review: four lists, opened one at a time --- */
+.tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 8px 0; }
+.tile {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 2px;
+  text-align: left; padding: 12px 14px; min-height: 64px;
+}
+.tile strong { font-size: 16px; }
+.tile span { color: var(--muted); font-size: 13px; }
+.tiles.small .tile { min-height: 52px; padding: 8px 12px; }
+.tile-active strong { color: var(--ink); }
+.tile-easy strong { color: var(--ok); }
+.tile-intermediate strong { color: var(--accent); }
+.tile-hard strong { color: var(--bad); }
+.list-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 8px 0 4px; }
+.list-title { font-size: 16px; }
+.list-title.tile-easy { color: var(--ok); }
+.list-title.tile-intermediate { color: var(--accent); }
+.list-title.tile-hard { color: var(--bad); }
+.swap-open { margin: 6px 0 0; }
+.picker { margin-top: 8px; padding: 10px; border: 1px dashed var(--line); border-radius: 10px; }
+.choices { list-style: none; padding: 0; margin: 6px 0; max-height: 360px; overflow-y: auto; }
+.choices button { display: block; width: 100%; text-align: left; margin-bottom: 6px; min-height: 44px; }

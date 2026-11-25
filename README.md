@@ -147,11 +147,14 @@ Point `.env` at `pubtrivia_dev` so you are never developing against game data.
   from a round's third question or halftime, taps "Update the scoreboard now", or
   shows the winners. The host always sees live totals.
 - Changing a question that already has answers warns the host about clearing them.
-- "Review questions" in the host console lists the whole lineup in play order, with
-  every answer and fun fact, and flags anything missing. The host can edit, swap two
-  questions' places, delete, or add a backup there; editing the question in play
-  updates it on every screen. Its "Swap with" list groups choices as Active
-  questions, then Easy, Intermediate and Hard backups, shown as "Category - Question".
+- "Review questions" in the host console opens to four lists: Active questions
+  (the lineup in play order, with halftime, final and tiebreaker), then Easy,
+  Intermediate and Hard backups. Each opens on its own, with every answer and fun
+  fact, and the panel flags anything missing. The host can edit, delete, add a
+  backup, or swap two questions' places; editing the question in play updates it on
+  every screen. "Swap with" first asks which list, then shows just that list, with
+  backups as "Category - Question". A swapped-out lineup question has no difficulty,
+  so it waits under Other backups.
 - Backups can carry a difficulty: an optional CSV column `Difficulty` with Easy,
   Intermediate (or Medium) or Hard. A file without that column leaves existing
   difficulties alone.
