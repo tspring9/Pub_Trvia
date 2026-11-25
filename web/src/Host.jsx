@@ -43,6 +43,10 @@ export function Host({ state, token, onSignedOut }) {
   const [minutes, setMinutes] = useState(state.timer_seconds / 60)
   useEffect(() => { setLimit(state.final_max_wager) }, [state.final_max_wager])
   useEffect(() => { setMinutes(state.timer_seconds / 60) }, [state.timer_seconds])
+  const [half1, setHalf1] = useState(state.rounds_half1)
+  const [half2, setHalf2] = useState(state.rounds_half2)
+  useEffect(() => { setHalf1(state.rounds_half1); setHalf2(state.rounds_half2) },
+    [state.rounds_half1, state.rounds_half2])
   // Last values the server gave us, so pushes do not clobber in-progress typing.
   const serverQA = useRef({ question_text: null, answer_text: null, note_text: null })
 
@@ -138,6 +142,14 @@ export function Host({ state, token, onSignedOut }) {
     const r = await post('/api/admin/publish-scores')
     if (r) setInfo(`Scoreboard updated: ${r.label}.`)
   }
+
+  const saveRounds = async (e) => {
+    e.preventDefault()
+    setErr(''); setInfo('')
+    const r = await post('/api/admin/rounds', { half1: Number(half1), half2: Number(half2) })
+    if (r) setInfo(`Rounds saved: ${half1} before halftime, ${half2} after, so questions 1–${r.regular_questions}. Back at question 1.`)
+  }
+  const roundsChanged = Number(half1) !== state.rounds_half1 || Number(half2) !== state.rounds_half2
 
   return (
     <section className="card host">
@@ -271,7 +283,25 @@ export function Host({ state, token, onSignedOut }) {
         </button>
       </form>
 
-      <Bank token={token} position={state.position} />
+      <form className="row" onSubmit={saveRounds}>
+        <label className="muted" htmlFor="rounds-1">Rounds before halftime</label>
+        <input
+          id="rounds-1" type="number" min="1" max="6" step="1" value={half1}
+          style={{ width: 70, margin: 0 }} onChange={(e) => setHalf1(e.target.value)}
+        />
+        <label className="muted" htmlFor="rounds-2">after</label>
+        <input
+          id="rounds-2" type="number" min="1" max="6" step="1" value={half2}
+          style={{ width: 70, margin: 0 }} onChange={(e) => setHalf2(e.target.value)}
+        />
+        <button type="submit" disabled={!roundsChanged || half1 === '' || half2 === ''}>Save</button>
+      </form>
+      <p className="muted">
+        {state.rounds_half1 + state.rounds_half2} rounds of 3: questions 1–{state.regular_count}.
+        Set this before the game starts.
+      </p>
+
+      <Bank token={token} position={state.position} regularCount={state.regular_count} />
 
       <h3>Grading {ungraded > 0 && <span className="badge">{ungraded} to go</span>}</h3>
       {a && state.kind !== 'halftime' && <p className="muted">Official answer: <strong>{a}</strong></p>}

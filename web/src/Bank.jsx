@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { api } from './live.js'
 
 // Question bank: bulk CSV upload, the index, and loading one into the live game.
-export function Bank({ token, position }) {
+export function Bank({ token, position, regularCount }) {
   const [questions, setQuestions] = useState([])
   const [errors, setErrors] = useState([])
   const [loadErr, setLoadErr] = useState('')
@@ -90,7 +90,7 @@ export function Bank({ token, position }) {
         the same Number. In Excel, save as CSV first.
       </p>
       <p className="muted">
-        Number 1–18 in play order, with backups from 19 up. Use <strong>Halftime</strong>,
+        Number 1–{regularCount} in play order, with backups from {regularCount + 1} up. Use <strong>Halftime</strong>,
         {' '}<strong>Tiebreaker</strong> or
         {' '}<strong>Final</strong> as the Number for those three, and list the halftime answers
         in order with semicolons: A; B; C; D.

@@ -133,4 +133,10 @@ ALTER TABLE submissions ADD CONSTRAINT wager_valid_for_half CHECK (
     )
 );
 
+-- Rounds in each half, set by the host. 3 and 3 makes 18 regular questions.
+ALTER TABLE game_state ADD COLUMN IF NOT EXISTS rounds_half1 integer NOT NULL DEFAULT 3
+    CHECK (rounds_half1 BETWEEN 1 AND 6);
+ALTER TABLE game_state ADD COLUMN IF NOT EXISTS rounds_half2 integer NOT NULL DEFAULT 3
+    CHECK (rounds_half2 BETWEEN 1 AND 6);
+
 COMMIT;

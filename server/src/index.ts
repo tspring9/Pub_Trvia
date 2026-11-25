@@ -4,7 +4,8 @@ import fastifyStatic from '@fastify/static'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 import {
-  q, tx, publicState, getGameState, allowedWagers, STEPS, liveScores, tiedForFirst, publishScores,
+  q, tx, publicState, getGameState, allowedWagers, liveScores, tiedForFirst, publishScores,
+  stepsFor, shapeOf, MAX_ROUNDS_PER_HALF, type Shape,
   stepIndexOf, kindOf, labelOf, halfForRound, partsOf, bankedPoints, usedWagers, stageEndLabel,
   HALFTIME_BANK, FINAL_BANK, TIEBREAK_BANK, HALFTIME_POINTS_PER_ANSWER,
   DEFAULT_FINAL_WAGER, DEFAULT_TIMER_SECONDS,
@@ -95,8 +96,8 @@ const clearAnswersAtCurrent = (round: number, question: number) =>
   q('DELETE FROM submissions WHERE round_num = $1 AND question_num = $2', [round, question])
 
 // Works out one grade. Returns an error message when the input does not fit.
-function scoreFor(sub: any, body: { correct?: boolean; correct_parts?: number; awarded_points?: number }) {
-  const kind = kindOf(sub.round_num, sub.question_num)
+function scoreFor(sub: any, body: { correct?: boolean; correct_parts?: number; awarded_points?: number }, shape: Shape) {
+  const kind = kindOf(sub.round_num, sub.question_num, shape)
 
   if (kind === 'halftime') {
     const spots = sub.submitted_answer.split('\n').length
@@ -192,7 +193,7 @@ const api = async (scope: typeof app) => {
 
       const round = gs.current_round
       const question = gs.current_question
-      const kind = kindOf(round, question)
+      const kind = kindOf(round, question, shapeOf(gs))
       let answer = String(req.body?.answer ?? '').trim()
       let wager = Number(req.body?.wager)
 
@@ -282,7 +283,7 @@ const api = async (scope: typeof app) => {
     ))[0] ?? null
 
     // Keeps the suspense: a final result stays hidden until the host shows it.
-    if (submission && kindOf(round, question) === 'final' && !gs.revealed && !gs.show_winners)
+    if (submission && kindOf(round, question, shapeOf(gs)) === 'final' && !gs.revealed && !gs.show_winners)
       submission = { ...submission, is_correct: null, awarded_points: 0 }
 
     const banked = await bankedPoints(session.team_id, round, question)
@@ -309,15 +310,17 @@ const api = async (scope: typeof app) => {
       return reply.code(400).send({ error: 'direction must be 1 or -1.' })
 
     const gs = await getGameState()
-    const target = stepIndexOf(gs.current_round, gs.current_question) + direction
+    const shape = shapeOf(gs)
+    const steps = stepsFor(shape)
+    const target = stepIndexOf(gs.current_round, gs.current_question, shape) + direction
     if (target < 0) return reply.code(409).send({ error: 'Already at the first question.' })
-    if (target >= STEPS.length) return reply.code(409).send({ error: 'That was the last question.' })
+    if (target >= steps.length) return reply.code(409).send({ error: 'That was the last question.' })
 
-    const step = STEPS[target]
+    const step = steps[target]
     if (step.kind === 'tiebreaker' && !(await tiedForFirst()).length)
       return reply.code(409).send({ error: 'That was the final question, and first place is not tied.' })
 
-    const stageEnd = stageEndLabel(gs.current_round, gs.current_question)
+    const stageEnd = stageEndLabel(gs.current_round, gs.current_question, shape)
     if (direction === 1 && stageEnd) await publishScores(stageEnd)
 
     const row = await questionByNumber(step.bank)
@@ -330,7 +333,7 @@ const api = async (scope: typeof app) => {
            tiebreak_winner = CASE WHEN $7 THEN NULL ELSE tiebreak_winner END,
            updated_at = now()
        WHERE id = 1`,
-      [step.round, step.question, halfForRound(step.round), row ? liveText(row) : '',
+      [step.round, step.question, halfForRound(step.round, shape), row ? liveText(row) : '',
        row?.answer ?? '', row?.note ?? '', step.kind === 'tiebreaker'],
     )
     await broadcast()
@@ -342,7 +345,7 @@ const api = async (scope: typeof app) => {
   scope.post('/api/admin/publish-scores', async (req, reply) => {
     if (!(await isHost(req, reply))) return reply
     const gs = await getGameState()
-    const label = stageEndLabel(gs.current_round, gs.current_question)
+    const label = stageEndLabel(gs.current_round, gs.current_question, shapeOf(gs))
     if (!label) return reply.code(409).send({ error: 'The scoreboard updates at the end of a round.' })
     await publishScores(label)
     await broadcast()
@@ -354,7 +357,7 @@ const api = async (scope: typeof app) => {
   scope.post<{ Body: { show?: boolean } }>('/api/admin/winners', async (req, reply) => {
     if (!(await isHost(req, reply))) return reply
     const gs = await getGameState()
-    const kind = kindOf(gs.current_round, gs.current_question)
+    const kind = kindOf(gs.current_round, gs.current_question, shapeOf(gs))
     if (kind !== 'final' && kind !== 'tiebreaker')
       return reply.code(409).send({ error: 'The winner screen comes after the final question.' })
 
@@ -422,7 +425,38 @@ const api = async (scope: typeof app) => {
       )
     })
     await broadcast()
-    return { ok: true, label: labelOf(STEPS[0]), in_bank: Boolean(row) }
+    return { ok: true, label: labelOf({ round: 1, question: 1, kind: 'regular' }), in_bank: Boolean(row) }
+  })
+
+  // How many rounds each half has. Changing it mid-game would move every later
+  // question, so it is only allowed before any answers, and it goes back to the
+  // start. It stays the same across new games until the host changes it again.
+  scope.post<{ Body: { half1?: number; half2?: number } }>('/api/admin/rounds', async (req, reply) => {
+    if (!(await isHost(req, reply))) return reply
+
+    const { half1, half2 } = req.body ?? {}
+    const ok = (n: unknown) => Number.isInteger(n) && (n as number) >= 1 && (n as number) <= MAX_ROUNDS_PER_HALF
+    if (!ok(half1) || !ok(half2))
+      return reply.code(400).send({ error: `Each half needs 1 to ${MAX_ROUNDS_PER_HALF} rounds.` })
+
+    const answers = (await q<{ n: number }>('SELECT count(*)::int AS n FROM submissions'))[0].n
+    if (answers)
+      return reply.code(409).send({ error: 'Set the rounds before the game starts, or start a new game first.' })
+
+    const row = await questionByNumber(1)
+    await q(
+      `UPDATE game_state
+       SET rounds_half1 = $1, rounds_half2 = $2,
+           current_round = 1, current_question = 1, half = 1,
+           question_text = $3, answer_text = $4, note_text = $5,
+           submissions_open = false, revealed = false, question_shown = false,
+           deadline = NULL, show_winners = false, scoreboard_label = '',
+           tiebreak_winner = NULL, updated_at = now()
+       WHERE id = 1`,
+      [half1, half2, row ? liveText(row) : '', row?.answer ?? '', row?.note ?? ''],
+    )
+    await broadcast()
+    return { ok: true, regular_questions: ((half1 as number) + (half2 as number)) * 3 }
   })
 
   scope.get('/api/admin/teams', async (req, reply) => {
@@ -526,7 +560,7 @@ const api = async (scope: typeof app) => {
   scope.get('/api/admin/state', async (req, reply) => {
     if (!(await isHost(req, reply))) return reply
     const gs = await getGameState()
-    const kind = kindOf(gs.current_round, gs.current_question)
+    const kind = kindOf(gs.current_round, gs.current_question, shapeOf(gs))
     return {
       ...gs,
       live_scores: await liveScores(),
@@ -584,7 +618,7 @@ const api = async (scope: typeof app) => {
 
       // Scoring follows the game's position, so these only fit in their own spot.
       const gs = await getGameState()
-      const kind = kindOf(gs.current_round, gs.current_question)
+      const kind = kindOf(gs.current_round, gs.current_question, shapeOf(gs))
       if (n === HALFTIME_BANK && kind !== 'halftime')
         return reply.code(409).send({ error: 'Move to halftime before loading the halftime question.' })
       if (n === FINAL_BANK && kind !== 'final')
@@ -619,7 +653,7 @@ const api = async (scope: typeof app) => {
       const sub = (await q('SELECT * FROM submissions WHERE id = $1', [id]))[0]
       if (!sub) return reply.code(404).send({ error: 'That answer no longer exists.' })
 
-      const score = scoreFor(sub, req.body)
+      const score = scoreFor(sub, req.body, shapeOf(await getGameState()))
       if ('error' in score) return reply.code(400).send({ error: score.error })
 
       await saveGrade(id, score)
@@ -637,8 +671,9 @@ const api = async (scope: typeof app) => {
         return reply.code(400).send({ error: 'ids and correct are required.' })
 
       const subs = await q('SELECT * FROM submissions WHERE id = ANY($1::int[])', [ids])
+      const shape = shapeOf(await getGameState())
       for (const sub of subs) {
-        const score = scoreFor(sub, { correct })
+        const score = scoreFor(sub, { correct }, shape)
         if ('error' in score) return reply.code(400).send({ error: score.error })
         await saveGrade(sub.id, score)
       }

@@ -34,17 +34,18 @@ export async function tx<T>(fn: (client: pg.PoolClient) => Promise<T>): Promise<
 export const allowedWagers = (half: number): number[] =>
   Number(half) === 1 ? [1, 3, 5] : [2, 4, 6]
 
-// The game's shape: 6 rounds of 3, halftime after round 3, the final after round
-// 6, and a tiebreaker only if first place is tied. Each step knows its bank number
-// (round 2, question 1 is #4), which is what lets Next find its question even
-// after the host swapped in a backup.
+// The game's shape: rounds of 3, halftime after the first half's rounds, the final
+// after the last round, and a tiebreaker only if first place is tied. The host sets
+// how many rounds each half has (3 and 3 by default). Each step knows its bank
+// number (round 2, question 1 is #4), which is what lets Next find its question
+// even after the host swapped in a backup.
 export type Kind = 'regular' | 'halftime' | 'final' | 'tiebreaker'
 export type Step = { round: number; question: number; kind: Kind; bank: number }
+export type Shape = { half1: number; half2: number }
 
-const ROUNDS = 6
 const QUESTIONS_PER_ROUND = 3
-const LAST_ROUND_OF_HALF_1 = 3
 const SPECIAL_QUESTION = QUESTIONS_PER_ROUND + 1
+export const MAX_ROUNDS_PER_HALF = 6
 
 // These have no number in the CSV, so they get reserved ones.
 export const HALFTIME_BANK = -1
@@ -54,24 +55,33 @@ export const HALFTIME_POINTS_PER_ANSWER = 2
 export const DEFAULT_FINAL_WAGER = 15
 export const DEFAULT_TIMER_SECONDS = 180
 
-export const STEPS: Step[] = []
-for (let round = 1, bank = 1; round <= ROUNDS; round++) {
-  for (let question = 1; question <= QUESTIONS_PER_ROUND; question++) {
-    STEPS.push({ round, question, kind: 'regular', bank: bank++ })
+export const shapeOf = (gs: { rounds_half1: number; rounds_half2: number }): Shape =>
+  ({ half1: gs.rounds_half1, half2: gs.rounds_half2 })
+
+export function stepsFor(shape: Shape): Step[] {
+  const steps: Step[] = []
+  const rounds = shape.half1 + shape.half2
+  for (let round = 1, bank = 1; round <= rounds; round++) {
+    for (let question = 1; question <= QUESTIONS_PER_ROUND; question++) {
+      steps.push({ round, question, kind: 'regular', bank: bank++ })
+    }
+    if (round === shape.half1)
+      steps.push({ round, question: SPECIAL_QUESTION, kind: 'halftime', bank: HALFTIME_BANK })
+    if (round === rounds) {
+      steps.push({ round, question: SPECIAL_QUESTION, kind: 'final', bank: FINAL_BANK })
+      steps.push({ round, question: SPECIAL_QUESTION + 1, kind: 'tiebreaker', bank: TIEBREAK_BANK })
+    }
   }
-  if (round === LAST_ROUND_OF_HALF_1)
-    STEPS.push({ round, question: SPECIAL_QUESTION, kind: 'halftime', bank: HALFTIME_BANK })
-  if (round === ROUNDS) {
-    STEPS.push({ round, question: SPECIAL_QUESTION, kind: 'final', bank: FINAL_BANK })
-    STEPS.push({ round, question: SPECIAL_QUESTION + 1, kind: 'tiebreaker', bank: TIEBREAK_BANK })
-  }
+  return steps
 }
 
-export const stepIndexOf = (round: number, question: number): number =>
-  STEPS.findIndex((s) => s.round === round && s.question === question)
+export const regularCount = (shape: Shape): number => (shape.half1 + shape.half2) * QUESTIONS_PER_ROUND
 
-export const kindOf = (round: number, question: number): Kind =>
-  STEPS[stepIndexOf(round, question)]?.kind ?? 'regular'
+export const stepIndexOf = (round: number, question: number, shape: Shape): number =>
+  stepsFor(shape).findIndex((s) => s.round === round && s.question === question)
+
+export const kindOf = (round: number, question: number, shape: Shape): Kind =>
+  stepsFor(shape)[stepIndexOf(round, question, shape)]?.kind ?? 'regular'
 
 export const labelOf = (s: { round: number; question: number; kind: Kind }): string =>
   s.kind === 'halftime' ? 'Halftime'
@@ -79,12 +89,12 @@ export const labelOf = (s: { round: number; question: number; kind: Kind }): str
     : s.kind === 'tiebreaker' ? 'Tiebreaker'
     : `Round ${s.round} · Question ${s.question}`
 
-export const halfForRound = (round: number): number =>
-  round > LAST_ROUND_OF_HALF_1 ? 2 : 1
+export const halfForRound = (round: number, shape: Shape): number =>
+  round > shape.half1 ? 2 : 1
 
 // The last question of a round, and halftime, are where the scoreboard updates.
-export const stageEndLabel = (round: number, question: number): string | null => {
-  const kind = kindOf(round, question)
+export const stageEndLabel = (round: number, question: number, shape: Shape): string | null => {
+  const kind = kindOf(round, question, shape)
   if (kind === 'halftime') return 'After halftime'
   if (kind === 'regular' && question === QUESTIONS_PER_ROUND) return `After Round ${round}`
   return null
@@ -130,6 +140,8 @@ export type GameState = {
   show_winners: boolean
   scoreboard_label: string
   tiebreak_winner: number | null
+  rounds_half1: number
+  rounds_half2: number
 }
 
 export const getGameState = async (): Promise<GameState> =>
@@ -172,8 +184,10 @@ export async function publicState() {
   const gs = await getGameState()
   const round = gs.current_round
   const question = gs.current_question
-  const index = stepIndexOf(round, question)
-  const kind = kindOf(round, question)
+  const shape = shapeOf(gs)
+  const steps = stepsFor(shape)
+  const index = stepIndexOf(round, question, shape)
+  const kind = kindOf(round, question, shape)
 
   // A tiebreak winner sorts ahead of the teams level with them.
   const ranked = await q<{ id: number; team_name: string; score: number }>(
@@ -197,8 +211,11 @@ export async function publicState() {
     kind,
     label: labelOf({ round, question, kind }),
     // Bank number for a regular question; null for the special ones.
-    position: kind === 'regular' && index >= 0 ? STEPS[index].bank : null,
+    position: kind === 'regular' && index >= 0 ? steps[index].bank : null,
     step: index + 1,
+    rounds_half1: shape.half1,
+    rounds_half2: shape.half2,
+    regular_count: regularCount(shape),
     half: gs.half,
     wagers: kind === 'regular' ? allowedWagers(gs.half) : [],
     // How many boxes to show. Reveals the count only, never the answers.
@@ -216,7 +233,7 @@ export async function publicState() {
     revealed: gs.revealed,
     allow_new_teams: gs.allow_new_teams,
     answered,
-    stage_end: stageEndLabel(round, question) !== null,
+    stage_end: stageEndLabel(round, question, shape) !== null,
     tiebreak_teams: kind === 'tiebreaker' ? (await tiedForFirst()).map((t) => t.team_name) : [],
     show_winners: gs.show_winners,
     winners: gs.show_winners ? winners : [],

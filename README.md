@@ -132,11 +132,13 @@ Point `.env` at `pubtrivia_dev` so you are never developing against game data.
 
 ## Game rules, as implemented
 
-- A game runs: rounds 1-3, halftime, rounds 4-6, final. Each round has 3 questions.
+- A game runs: the first half's rounds, halftime, the second half's rounds, final. The host
+  sets how many rounds each half has (1-6, default 3 and 3) before the game starts;
+  it carries over to new games. Each round has 3 questions.
   Next and Back move through them and load the matching bank question: round 2,
-  question 1 is #4, and the last regular question is #18. Loading a different bank
+  question 1 is #4, and with 3 and 3 the last regular question is #18. Loading a different bank
   question is a one-off swap and does not shift the rest.
-- Rounds 1-3 are half 1 and rounds 4-6 are half 2, set by Next and Back.
+- The first half's rounds are half 1 and the rest are half 2, set by Next and Back.
 - Teams only see a question once the host has opened or revealed it, and it stays
   up after closing. The fun fact appears once the answer is revealed.
 - Opening a question starts the countdown (default 3 minutes, 0 turns it off), and
