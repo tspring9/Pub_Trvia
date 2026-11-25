@@ -147,6 +147,10 @@ Point `.env` at `pubtrivia_dev` so you are never developing against game data.
   from a round's third question or halftime, taps "Update the scoreboard now", or
   shows the winners. The host always sees live totals.
 - Changing a question that already has answers warns the host about clearing them.
+- "Review questions" in the host console lists the whole lineup in play order, with
+  every answer and fun fact, and flags anything missing. The host can edit, swap two
+  questions' places, delete, or add a backup there; editing the question in play
+  updates it on every screen.
 - `/display` is a read-only screen for the room: join code, questions, standings
   and winners.
 - New game clears answers and scores, keeping or removing teams, and puts the timer

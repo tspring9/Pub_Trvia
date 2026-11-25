@@ -11,7 +11,10 @@ import {
   DEFAULT_FINAL_WAGER, DEFAULT_TIMER_SECONDS,
 } from './db.ts'
 import { hashPassword, verifyPassword, createSession, sessionFrom, generateTempPassword } from './auth.ts'
-import { parseQuestionCsv, upsertQuestionBank, questionIndex, questionByNumber, liveText } from './questions.ts'
+import {
+  parseQuestionCsv, upsertQuestionBank, questionIndex, questionByNumber, liveText,
+  bankAll, cleanBankRow, saveBankRow, deleteBankRow, swapBankRows,
+} from './questions.ts'
 import {
   clientIp, lockedForMinutes, recordFailure, clearFailures,
   HOST_LOGIN_ATTEMPTS, TEAM_LOGIN_ATTEMPTS, MAX_TEAMS, MAX_TEAM_NAME, MAX_PASSWORD, MAX_ANSWER,
@@ -641,6 +644,91 @@ const api = async (scope: typeof app) => {
       )
       await broadcast()
       return { ok: true, loaded: n }
+    })
+
+  // --- reviewing the bank ahead of time ---
+  // The bank number the game is on right now, or null between special steps.
+  const currentBank = (gs: Awaited<ReturnType<typeof getGameState>>): number | null => {
+    const shape = shapeOf(gs)
+    return stepsFor(shape)[stepIndexOf(gs.current_round, gs.current_question, shape)]?.bank ?? null
+  }
+
+  const SPECIAL_BANKS = [HALFTIME_BANK, FINAL_BANK, TIEBREAK_BANK]
+  const validNumber = (n: number) => Number.isInteger(n) && (n >= 1 || SPECIAL_BANKS.includes(n))
+
+  scope.get('/api/admin/bank', async (req, reply) => {
+    if (!(await isHost(req, reply))) return reply
+    const gs = await getGameState()
+    return { questions: await bankAll(), current: currentBank(gs) }
+  })
+
+  // Saves one question, new or edited. Editing the one in play also updates it
+  // on every screen; answers already given are kept, as for a typo fix.
+  scope.put<{ Params: { n: string }; Body: Record<string, unknown> }>(
+    '/api/admin/bank/:n', async (req, reply) => {
+      if (!(await isHost(req, reply))) return reply
+      const n = Number(req.params.n)
+      if (!validNumber(n)) return reply.code(400).send({ error: 'Bad question number.' })
+
+      const cleaned = cleanBankRow(n, req.body ?? {})
+      if ('error' in cleaned) return reply.code(400).send({ error: cleaned.error })
+      await saveBankRow(cleaned.row)
+
+      const gs = await getGameState()
+      const live = currentBank(gs) === n
+      if (live) {
+        await q(
+          'UPDATE game_state SET question_text = $1, answer_text = $2, note_text = $3, updated_at = now() WHERE id = 1',
+          [liveText(cleaned.row), cleaned.row.answer, cleaned.row.note],
+        )
+        await broadcast()
+      }
+      return { ok: true, live }
+    })
+
+  scope.delete<{ Params: { n: string } }>('/api/admin/bank/:n', async (req, reply) => {
+    if (!(await isHost(req, reply))) return reply
+    const n = Number(req.params.n)
+    if (!validNumber(n)) return reply.code(400).send({ error: 'Bad question number.' })
+    if (!(await deleteBankRow(n))) return reply.code(404).send({ error: 'That question is not in the bank.' })
+    return { ok: true }
+  })
+
+  // Exchanges two numbered questions' places in the lineup. If one of them is
+  // the question in play, that question changes on screen, so answers already
+  // given to it need the same decision as any swap.
+  scope.post<{ Body: { a?: number; b?: number; reset_answers?: boolean } }>(
+    '/api/admin/bank/swap', async (req, reply) => {
+      if (!(await isHost(req, reply))) return reply
+      const a = Number(req.body?.a)
+      const b = Number(req.body?.b)
+      if (!Number.isInteger(a) || !Number.isInteger(b) || a < 1 || b < 1 || a === b)
+        return reply.code(400).send({ error: 'Pick two different numbered questions.' })
+
+      const gs = await getGameState()
+      const playing = currentBank(gs)
+      const touchesLive = playing === a || playing === b
+      if (touchesLive) {
+        const answers = await answersAtCurrent(gs.current_round, gs.current_question)
+        if (answers && req.body?.reset_answers !== true)
+          return reply.code(409).send({ error: 'Not swapped: teams have already answered the question in play.', needs_reset: true, answers })
+        if (answers) await clearAnswersAtCurrent(gs.current_round, gs.current_question)
+      }
+
+      await swapBankRows(a, b)
+
+      if (touchesLive) {
+        const row = await questionByNumber(playing!)
+        await q(
+          `UPDATE game_state
+           SET question_text = $1, answer_text = $2, note_text = $3, submissions_open = false,
+               revealed = false, question_shown = false, deadline = NULL, updated_at = now()
+           WHERE id = 1`,
+          [row ? liveText(row) : '', row?.answer ?? '', row?.note ?? ''],
+        )
+        await broadcast()
+      }
+      return { ok: true, live: touchesLive }
     })
 
   scope.post<{ Body: { id?: number; correct?: boolean; correct_parts?: number; awarded_points?: number } }>(

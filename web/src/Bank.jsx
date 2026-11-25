@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { api } from './live.js'
 
 // Question bank: bulk CSV upload, the index, and loading one into the live game.
-export function Bank({ token, position, regularCount }) {
+export function Bank({ token, position, regularCount, version }) {
   const [questions, setQuestions] = useState([])
   const [errors, setErrors] = useState([])
   const [loadErr, setLoadErr] = useState('')
@@ -19,7 +19,7 @@ export function Bank({ token, position, regularCount }) {
     api('/api/admin/questions', { token })
       .then(setQuestions)
       .catch((e) => setErrors([e.message]))
-  }, [token])
+  }, [token, version])
 
   const upload = async (e) => {
     const f = e.target.files?.[0]

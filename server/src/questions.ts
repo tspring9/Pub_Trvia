@@ -183,3 +183,51 @@ export const questionByNumber = (n: number) =>
 // What teams see for a bank question, matching app.py's "[Category] Question".
 export const liveText = (row: { category: string; question: string }) =>
   `[${row.category}] ${row.question}`
+
+// --- reviewing and editing the bank ahead of the game ----------------------
+
+export const MAX_QUESTION = 2000
+export const MAX_FIELD = 500
+
+export const bankAll = () =>
+  q<BankRow>('SELECT q_number, category, question, answer, note FROM question_bank ORDER BY q_number ASC')
+
+// Checks one row the host typed in. Returns the cleaned row, or an error.
+export function cleanBankRow(n: number, body: Record<string, unknown>):
+  { row: BankRow } | { error: string } {
+  const text = (k: string) => String(body[k] ?? '').trim()
+  const row = { q_number: n, category: text('category'), question: text('question'), answer: text('answer'), note: text('note') }
+  if (!row.category || !row.question || !row.answer)
+    return { error: 'Category, question and answer are all needed.' }
+  if (row.question.length > MAX_QUESTION || row.category.length > MAX_FIELD ||
+      row.answer.length > MAX_FIELD || row.note.length > MAX_QUESTION)
+    return { error: 'That is too long.' }
+  if (n === HALFTIME_BANK && !partsOf(row.answer).length)
+    return { error: 'List the halftime answers in order, separated by semicolons: A; B; C; D.' }
+  return { row }
+}
+
+export const saveBankRow = (r: BankRow) =>
+  q(
+    `INSERT INTO question_bank (q_number, category, question, answer, note)
+     VALUES ($1, $2, $3, $4, $5)
+     ON CONFLICT (q_number) DO UPDATE SET
+       category = excluded.category, question = excluded.question,
+       answer = excluded.answer, note = excluded.note`,
+    [r.q_number, r.category, r.question, r.answer, r.note || null],
+  )
+
+export const deleteBankRow = (n: number) =>
+  q('DELETE FROM question_bank WHERE q_number = $1 RETURNING q_number', [n]).then((r) => r.length > 0)
+
+// Exchanges two numbered questions' places. Either may be an empty number, in
+// which case the question simply moves there.
+export async function swapBankRows(a: number, b: number) {
+  const { tx } = await import('./db.ts')
+  await tx(async (client) => {
+    const parked = -1000   // q_number is unique, so one row waits here mid-swap
+    await client.query('UPDATE question_bank SET q_number = $1 WHERE q_number = $2', [parked, a])
+    await client.query('UPDATE question_bank SET q_number = $1 WHERE q_number = $2', [a, b])
+    await client.query('UPDATE question_bank SET q_number = $1 WHERE q_number = $2', [b, parked])
+  })
+}

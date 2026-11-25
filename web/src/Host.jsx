@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { api } from './live.js'
 import { Bank } from './Bank.jsx'
 import { Teams } from './Teams.jsx'
+import { Review } from './Review.jsx'
 import { JoinQr, joinUrl } from './Qr.jsx'
 import { Timer } from './Timer.jsx'
 
@@ -39,6 +40,7 @@ export function Host({ state, token, onSignedOut }) {
   const [info, setInfo] = useState('')
   const [moving, setMoving] = useState(false)
   const [showQr, setShowQr] = useState(false)
+  const [bankVersion, setBankVersion] = useState(0)
   const [limit, setLimit] = useState(state.final_max_wager)
   const [minutes, setMinutes] = useState(state.timer_seconds / 60)
   useEffect(() => { setLimit(state.final_max_wager) }, [state.final_max_wager])
@@ -301,7 +303,9 @@ export function Host({ state, token, onSignedOut }) {
         Set this before the game starts.
       </p>
 
-      <Bank token={token} position={state.position} regularCount={state.regular_count} />
+      <Review state={state} token={token} onChanged={() => setBankVersion((v) => v + 1)} />
+
+      <Bank token={token} position={state.position} regularCount={state.regular_count} version={bankVersion} />
 
       <h3>Grading {ungraded > 0 && <span className="badge">{ungraded} to go</span>}</h3>
       {a && state.kind !== 'halftime' && <p className="muted">Official answer: <strong>{a}</strong></p>}

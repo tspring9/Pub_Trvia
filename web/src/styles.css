@@ -224,3 +224,17 @@ button:disabled { opacity: .45; cursor: not-allowed; }
 .display .winners .scores li { font-size: clamp(18px, min(2.6vw, 4vh), 40px); padding: 0.7vh 0; }
 /* The full list is on every phone; the TV shows the top of it. */
 .display .winners .scores li:nth-child(n+7) { display: none; }
+
+/* --- question review --- */
+.lineup { list-style: none; padding: 0; margin: 8px 0 0; }
+.lineup > li { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; margin-bottom: 8px; }
+.lineup > li.in-play { border-color: var(--ok); }
+.slot-head { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 4px; }
+.slot-q { margin: 4px 0; }
+.slot-a { margin: 0 0 4px; color: var(--ok); font-weight: 600; }
+.lineup .row { margin: 6px 0 0; }
+.lineup select {
+  min-height: 44px; padding: 0 10px; border-radius: 10px; max-width: 100%;
+  background: #2e241b; color: var(--ink); border: 1px solid var(--line); font: inherit;
+}
+.editor { margin-top: 6px; }
