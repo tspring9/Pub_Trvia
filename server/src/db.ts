@@ -140,6 +140,7 @@ export type GameState = {
   show_winners: boolean
   scoreboard_label: string
   tiebreak_winner: number | null
+  show_standings: boolean
   rounds_half1: number
   rounds_half2: number
 }
@@ -238,6 +239,7 @@ export async function publicState() {
     show_winners: gs.show_winners,
     winners: gs.show_winners ? winners : [],
     scoreboard_label: gs.scoreboard_label,
+    show_standings: gs.show_standings,
     scores,
   }
 }

@@ -144,4 +144,8 @@ ALTER TABLE game_state ADD COLUMN IF NOT EXISTS rounds_half2 integer NOT NULL DE
 ALTER TABLE question_bank ADD COLUMN IF NOT EXISTS difficulty text
     CHECK (difficulty IN ('easy', 'intermediate', 'hard'));
 
+-- The host's "Show standings": the room display shows the scoreboard until the
+-- next question opens or the game moves on.
+ALTER TABLE game_state ADD COLUMN IF NOT EXISTS show_standings boolean NOT NULL DEFAULT false;
+
 COMMIT;

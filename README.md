@@ -144,8 +144,11 @@ Point `.env` at `pubtrivia_dev` so you are never developing against game data.
 - Opening a question starts the countdown (default 3 minutes, 0 turns it off), and
   the server closes it at zero. The host can add 30 seconds.
 - The public scoreboard only updates at the end of a round: when the host moves on
-  from a round's third question or halftime, taps "Update the scoreboard now", or
-  shows the winners. The host always sees live totals.
+  from a round's third question or halftime, taps "Show standings", or shows the
+  winners. The host always sees live totals.
+- "Show standings" (on a round's third question or halftime, once closed) also puts
+  the standings on the room display straight away. They stay up until the next
+  question opens or the host presses Next, or taps "Hide standings".
 - Changing a question that already has answers warns the host about clearing them.
 - The answer can only be revealed once the question is closed.
 - While a question is up, the host sees "Answered N of M", which teams are in and

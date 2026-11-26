@@ -342,7 +342,7 @@ const api = async (scope: typeof app) => {
        SET current_round = $1, current_question = $2, half = $3,
            question_text = $4, answer_text = $5, note_text = $6,
            submissions_open = false, revealed = false, question_shown = false,
-           deadline = NULL, show_winners = false,
+           deadline = NULL, show_winners = false, show_standings = false,
            tiebreak_winner = CASE WHEN $7 THEN NULL ELSE tiebreak_winner END,
            updated_at = now()
        WHERE id = 1`,
@@ -353,17 +353,28 @@ const api = async (scope: typeof app) => {
     return { ok: true, label: labelOf(step), in_bank: Boolean(row) }
   })
 
-  // Puts the scoreboard up without waiting for Next, e.g. to show the room the
-  // standings at the end of a round before moving on.
-  scope.post('/api/admin/publish-scores', async (req, reply) => {
+  // "Show standings": at the end of a round, publishes the scores and puts the
+  // standings on the room display straight away, without waiting for Next.
+  // They stay up until the next question opens or the game moves on, or the
+  // host hides them.
+  const showStandings = async (req: any, reply: any) => {
     if (!(await isHost(req, reply))) return reply
     const gs = await getGameState()
+    if (req.body?.show === false) {
+      await q('UPDATE game_state SET show_standings = false, updated_at = now() WHERE id = 1')
+      await broadcast()
+      return { ok: true, showing: false }
+    }
     const label = stageEndLabel(gs.current_round, gs.current_question, shapeOf(gs))
-    if (!label) return reply.code(409).send({ error: 'The scoreboard updates at the end of a round.' })
+    if (!label) return reply.code(409).send({ error: 'Standings can go up at the end of a round or after halftime.' })
+    if (gs.submissions_open) return reply.code(409).send({ error: 'Close the question before showing the standings.' })
     await publishScores(label)
+    await q('UPDATE game_state SET show_standings = true, updated_at = now() WHERE id = 1')
     await broadcast()
-    return { ok: true, label }
-  })
+    return { ok: true, showing: true, label }
+  }
+  scope.post('/api/admin/standings', showStandings)
+  scope.post('/api/admin/publish-scores', showStandings)   // the older name
 
   // The host's trigger, so grades can be fixed first. Hiding it again allows
   // another correction, and showing it again picks that up.
@@ -430,7 +441,7 @@ const api = async (scope: typeof app) => {
              question_text = $1, answer_text = $2, note_text = $3,
              submissions_open = false, revealed = false, question_shown = false,
              allow_new_teams = true, final_max_wager = $4, timer_seconds = $5,
-             deadline = NULL, show_winners = false, scoreboard_label = '',
+             deadline = NULL, show_winners = false, show_standings = false, scoreboard_label = '',
              tiebreak_winner = NULL, updated_at = now()
          WHERE id = 1`,
         [row ? liveText(row) : '', row?.answer ?? '', row?.note ?? '',
@@ -463,7 +474,7 @@ const api = async (scope: typeof app) => {
            current_round = 1, current_question = 1, half = 1,
            question_text = $3, answer_text = $4, note_text = $5,
            submissions_open = false, revealed = false, question_shown = false,
-           deadline = NULL, show_winners = false, scoreboard_label = '',
+           deadline = NULL, show_winners = false, show_standings = false, scoreboard_label = '',
            tiebreak_winner = NULL, updated_at = now()
        WHERE id = 1`,
       [half1, half2, row ? liveText(row) : '', row?.answer ?? '', row?.note ?? ''],
@@ -559,6 +570,7 @@ const api = async (scope: typeof app) => {
     // Opening starts the countdown and puts the question up; closing stops it.
     if (body.submissions_open === true) {
       sets.push('question_shown = true')
+      sets.push('show_standings = false')
       sets.push(`deadline = CASE WHEN timer_seconds > 0
                  THEN now() + timer_seconds * interval '1 second' END`)
     }

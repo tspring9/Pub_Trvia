@@ -148,9 +148,10 @@ export function Host({ state, token, onSignedOut }) {
     post('/api/admin/winners', { show: true })
   }
 
-  const publish = async () => {
-    const r = await post('/api/admin/publish-scores')
-    if (r) setInfo(`Scoreboard updated: ${r.label}.`)
+  const standings = async (show) => {
+    const r = await post('/api/admin/standings', { show })
+    if (r?.showing) setInfo(`Standings are up on the TV: ${r.label}. They come down when you open the next question or press Next.`)
+    else if (r) setInfo('Standings taken down.')
   }
 
   const saveRounds = async (e) => {
@@ -252,8 +253,10 @@ export function Host({ state, token, onSignedOut }) {
         ⬅️ Back a question
       </button>
 
-      {state.stage_end && (
-        <button className="ghost" onClick={publish}>📊 Update the scoreboard now</button>
+      {(state.stage_end || state.show_standings) && (
+        <button className="ghost" onClick={() => standings(!state.show_standings)}>
+          {state.show_standings ? '📊 Hide standings' : '📊 Show standings'}
+        </button>
       )}
 
       {special && (

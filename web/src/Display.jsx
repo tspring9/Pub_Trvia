@@ -12,6 +12,7 @@ export function Display() {
   return (
     <main className="display">
       {state.show_winners ? <Winners state={state} />
+        : state.show_standings ? <Standings state={state} />
         : state.question_text ? <Question state={state} />
         : state.scoreboard_label ? <Standings state={state} />
         : <Lobby state={state} />}
@@ -77,7 +78,7 @@ function Standings({ state }) {
             <li key={s.team_name}><span>{s.team_name}</span><strong>{s.score}</strong></li>
           ))}
         </ol>
-        <p className="d-sub">Up next: {state.label}</p>
+        {!state.show_standings && <p className="d-sub">Up next: {state.label}</p>}
       </div>
       <JoinQr size={220} />
     </div>
