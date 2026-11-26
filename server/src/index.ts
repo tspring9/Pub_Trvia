@@ -587,6 +587,29 @@ const api = async (scope: typeof app) => {
 
   // The host needs answer_text to grade, which publicState() deliberately
   // withholds from teams until reveal. This is the host's full view.
+  // What the host reads out before a round starts: at question 1, the round's
+  // three categories in order, from the lineup as it stands after any swaps;
+  // at halftime, the final and the tiebreaker, that question's category.
+  const announcement = async (gs: Awaited<ReturnType<typeof getGameState>>, kind: string) => {
+    if (kind === 'regular') {
+      if (gs.current_question !== 1) return null
+      const first = (gs.current_round - 1) * 3 + 1
+      const rows = await q<{ q_number: number; category: string }>(
+        'SELECT q_number, category FROM question_bank WHERE q_number BETWEEN $1 AND $2 ORDER BY q_number',
+        [first, first + 2],
+      )
+      const byNumber = new Map(rows.map((r) => [r.q_number, r.category]))
+      return {
+        title: `Round ${gs.current_round} categories`,
+        categories: [0, 1, 2].map((i) => byNumber.get(first + i) ?? '(no question loaded)'),
+      }
+    }
+    const bank = kind === 'halftime' ? HALFTIME_BANK : kind === 'final' ? FINAL_BANK : TIEBREAK_BANK
+    const row = await questionByNumber(bank)
+    const title = kind === 'halftime' ? 'Halftime category' : kind === 'final' ? 'Final question category' : 'Tiebreaker category'
+    return { title, categories: [row?.category ?? '(no question loaded)'] }
+  }
+
   scope.get('/api/admin/state', async (req, reply) => {
     if (!(await isHost(req, reply))) return reply
     const gs = await getGameState()
@@ -595,6 +618,7 @@ const api = async (scope: typeof app) => {
       ...gs,
       live_scores: await liveScores(),
       tied_teams: kind === 'final' || kind === 'tiebreaker' ? await tiedForFirst() : [],
+      announce: await announcement(gs, kind),
     }
   })
 

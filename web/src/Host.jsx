@@ -178,6 +178,13 @@ export function Host({ state, token, onSignedOut }) {
         {state.show_winners && <span className="pill open">WINNERS SHOWING</span>}
       </div>
 
+      {full?.announce && (
+        <div className="announce">
+          <p className="announce-title">📣 {full.announce.title}</p>
+          <ol>{full.announce.categories.map((c, i) => <li key={i}>{c}</li>)}</ol>
+        </div>
+      )}
+
       <div className="row">
         <a className="linkbtn" href={`${import.meta.env.BASE_URL}display`} target="_blank" rel="noreferrer">
           🖥 Open room display

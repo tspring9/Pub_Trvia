@@ -151,6 +151,9 @@ Point `.env` at `pubtrivia_dev` so you are never developing against game data.
   question opens or the host presses Next, or taps "Hide standings".
 - Changing a question that already has answers warns the host about clearing them.
 - The answer can only be revealed once the question is closed.
+- At the first question of each round, the host screen lists that round's three
+  categories to read out, following any swaps. Halftime, the final and the
+  tiebreaker show their own category. Teams and the room display do not see it.
 - While a question is up, the host sees "Answered N of M", which teams are in and
   which are still to answer (only the tied teams at a tiebreaker).
 - "Review questions" in the host console opens to four lists: Active questions

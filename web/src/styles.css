@@ -280,3 +280,12 @@ button:disabled { opacity: .45; cursor: not-allowed; }
 .answered-count strong { font-size: 16px; }
 .answered.all-in .answered-count { color: var(--ok); }
 .host > h3.section-title { margin-top: 26px; padding-top: 14px; border-top: 1px solid var(--line); }
+
+/* --- host: categories to read out at the start of a round --- */
+.announce {
+  border: 1px solid var(--accent); border-radius: 10px; padding: 10px 14px; margin: 0 0 12px;
+  background: #2e241b;
+}
+.announce-title { margin: 0 0 4px; color: var(--accent); font-weight: 700; }
+.announce ol { margin: 0; padding-left: 22px; font-size: 18px; font-weight: 600; }
+.announce li { padding: 2px 0; }
