@@ -67,6 +67,16 @@ app.register(async (scope) => {
   })
 }, { prefix: BASE_PATH })
 
+// A small ping keeps every socket busy, so a browser can tell a live connection
+// from one a proxy has silently dropped. Pages ignore it.
+setInterval(() => {
+  const ping = JSON.stringify({ type: 'ping' })
+  for (const ws of clients) {
+    if (ws.readyState === 1) ws.send(ping)
+    else clients.delete(ws)
+  }
+}, 25000)
+
 // The countdown lives here rather than on the phones, so it closes for everyone
 // at once and survives a restart.
 setInterval(async () => {
