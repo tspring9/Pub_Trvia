@@ -86,7 +86,10 @@ export function Host({ state, token, onSignedOut }) {
     return () => { live = false }
   }, [token, state])
 
-  const post = (path, body) => api(path, { method: 'POST', token, body }).catch(fail)
+  // A successful action clears an earlier error, so it does not linger.
+  const post = (path, body) => api(path, { method: 'POST', token, body })
+    .then((r) => { setErr(''); return r })
+    .catch(fail)
   const patch = (body) => post('/api/admin/state', body)
   const grade = (id, body) => post('/api/admin/grade', { id, ...body })
   const gradeGroup = (group, correct) =>
@@ -107,6 +110,11 @@ export function Host({ state, token, onSignedOut }) {
   const ungraded = subs.filter((s) => s.is_correct === null).length
   const special = state.kind === 'final' || state.kind === 'tiebreaker'
   const tied = full?.tied_teams ?? []
+
+  // Who has answered the question in play. At a tiebreaker only the tied teams can.
+  const expected = state.kind === 'tiebreaker' ? state.tiebreak_teams : state.scores.map((t) => t.team_name)
+  const answeredNames = new Set(subs.map((s) => s.team_name))
+  const waitingOn = expected.filter((name) => !answeredNames.has(name))
 
   const describe = (label, inBank) => inBank
     ? `Loaded ${label}. Open it when you are ready.`
@@ -202,6 +210,18 @@ export function Host({ state, token, onSignedOut }) {
       <button className="ghost" onClick={saveQA}>Save question</button>
 
       <Timer state={state} />
+      {(state.submissions_open || subs.length > 0) && expected.length > 0 && (
+        <div className={`answered ${waitingOn.length ? '' : 'all-in'}`}>
+          <p className="answered-count">
+            <strong>Answered {expected.length - waitingOn.length} of {expected.length}</strong>
+            {!waitingOn.length && state.submissions_open && <span> · everyone is in, you can close it</span>}
+          </p>
+          {answeredNames.size > 0 && (
+            <p className="muted">✅ {[...answeredNames].filter((n) => expected.includes(n)).join(', ')}</p>
+          )}
+          {waitingOn.length > 0 && <p className="muted">⏳ Waiting on: {waitingOn.join(', ')}</p>}
+        </div>
+      )}
       {state.seconds_left !== null && (
         <button className="ghost" onClick={() => post('/api/admin/extend', { seconds: 30 })}>+30 seconds</button>
       )}

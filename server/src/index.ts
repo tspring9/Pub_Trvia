@@ -530,6 +530,11 @@ const api = async (scope: typeof app) => {
 
     const gs = await getGameState()
 
+    // The answer only goes up once the question is closed, so nobody can still
+    // change theirs after seeing it.
+    if (body.revealed === true && gs.submissions_open && body.submissions_open !== false)
+      return reply.code(409).send({ error: 'Close the question before revealing the answer.' })
+
     // Changing the question under answers already given needs a decision: a typo
     // fix keeps them, a different question clears them.
     if ('question_text' in body && body.question_text !== gs.question_text) {

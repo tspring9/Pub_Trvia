@@ -147,6 +147,9 @@ Point `.env` at `pubtrivia_dev` so you are never developing against game data.
   from a round's third question or halftime, taps "Update the scoreboard now", or
   shows the winners. The host always sees live totals.
 - Changing a question that already has answers warns the host about clearing them.
+- The answer can only be revealed once the question is closed.
+- While a question is up, the host sees "Answered N of M", which teams are in and
+  which are still to answer (only the tied teams at a tiebreaker).
 - "Review questions" in the host console opens to four lists: Active questions
   (the lineup in play order, with halftime, final and tiebreaker), then Easy,
   Intermediate and Hard backups. Each opens on its own, with every answer and fun

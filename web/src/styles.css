@@ -272,3 +272,10 @@ button:disabled { opacity: .45; cursor: not-allowed; }
 .picker { margin-top: 8px; padding: 10px; border: 1px dashed var(--line); border-radius: 10px; }
 .choices { list-style: none; padding: 0; margin: 6px 0; max-height: 360px; overflow-y: auto; }
 .choices button { display: block; width: 100%; text-align: left; margin-bottom: 6px; min-height: 44px; }
+
+/* --- host: who has answered the question in play --- */
+.answered { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; margin: 0 0 12px; }
+.answered.all-in { border-color: var(--ok); }
+.answered p { margin: 2px 0; }
+.answered-count strong { font-size: 16px; }
+.answered.all-in .answered-count { color: var(--ok); }
