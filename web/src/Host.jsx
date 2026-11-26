@@ -271,6 +271,28 @@ export function Host({ state, token, onSignedOut }) {
         </>
       )}
 
+      <h3>Grading {ungraded > 0 && <span className="badge">{ungraded} to go</span>}</h3>
+      {a && state.kind !== 'halftime' && <p className="muted">Official answer: <strong>{a}</strong></p>}
+      {note && <p className="muted">💡 {note}</p>}
+      {!subs.length ? <p className="muted">No submissions for this question yet.</p> : (
+        <ul className="subs">
+          {state.kind === 'halftime'
+            ? subs.map((s) => <HalftimeRow key={s.id} sub={s} official={a} grade={grade} />)
+            : state.kind === 'tiebreaker'
+              ? subs.map((s) => (
+                <TiebreakRow
+                  key={s.id} sub={s} winnerId={full?.tiebreak_winner}
+                  pick={(teamId) => post('/api/admin/tiebreak-winner', { team_id: teamId })}
+                />
+              ))
+              : groupAnswers(subs, a).map((g) => (
+                <AnswerGroup key={g.key} group={g} kind={state.kind} gradeGroup={gradeGroup} />
+              ))}
+        </ul>
+      )}
+
+      {/* Set-up for the night, mostly used before the game starts. */}
+      <h3 className="section-title">Game settings</h3>
       <button className="ghost" onClick={() => patch({ allow_new_teams: !state.allow_new_teams })}>
         {state.allow_new_teams ? 'Close sign-ups' : 'Reopen sign-ups'}
       </button>
@@ -326,26 +348,6 @@ export function Host({ state, token, onSignedOut }) {
       <Review state={state} token={token} onChanged={() => setBankVersion((v) => v + 1)} />
 
       <Bank token={token} position={state.position} regularCount={state.regular_count} version={bankVersion} />
-
-      <h3>Grading {ungraded > 0 && <span className="badge">{ungraded} to go</span>}</h3>
-      {a && state.kind !== 'halftime' && <p className="muted">Official answer: <strong>{a}</strong></p>}
-      {note && <p className="muted">💡 {note}</p>}
-      {!subs.length ? <p className="muted">No submissions for this question yet.</p> : (
-        <ul className="subs">
-          {state.kind === 'halftime'
-            ? subs.map((s) => <HalftimeRow key={s.id} sub={s} official={a} grade={grade} />)
-            : state.kind === 'tiebreaker'
-              ? subs.map((s) => (
-                <TiebreakRow
-                  key={s.id} sub={s} winnerId={full?.tiebreak_winner}
-                  pick={(teamId) => post('/api/admin/tiebreak-winner', { team_id: teamId })}
-                />
-              ))
-              : groupAnswers(subs, a).map((g) => (
-                <AnswerGroup key={g.key} group={g} kind={state.kind} gradeGroup={gradeGroup} />
-              ))}
-        </ul>
-      )}
 
       <div className="bank">
         <h3 className="live-title">Live scores <span className="pill">only you see these</span></h3>

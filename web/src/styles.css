@@ -279,3 +279,4 @@ button:disabled { opacity: .45; cursor: not-allowed; }
 .answered p { margin: 2px 0; }
 .answered-count strong { font-size: 16px; }
 .answered.all-in .answered-count { color: var(--ok); }
+.host > h3.section-title { margin-top: 26px; padding-top: 14px; border-top: 1px solid var(--line); }
