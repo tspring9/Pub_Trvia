@@ -147,7 +147,7 @@ export function TeamQuestion({ state, auth, onSignedOut }) {
   )
 }
 
-function Official({ state }) {
+export function Official({ state }) {
   if (state.kind !== 'halftime') {
     return <p className="reveal">✅ Official answer: <strong>{state.answer_text}</strong></p>
   }

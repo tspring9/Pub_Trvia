@@ -4,6 +4,7 @@ import { Host } from './Host.jsx'
 import { TeamQuestion } from './Team.jsx'
 import { Display } from './Display.jsx'
 import { Winners } from './Winners.jsx'
+import { Viewer } from './Viewer.jsx'
 
 export default function App() {
   return location.pathname.replace(/\/$/, '').endsWith('/display') ? <Display /> : <Main />
@@ -20,7 +21,7 @@ function Main() {
       <header>
         <h1>🍻 Pub Trivia</h1>
         <span className={connected ? 'dot live' : 'dot'} title={connected ? 'Live' : 'Reconnecting…'} />
-        {auth && <button className="link" onClick={signOut}>Sign out</button>}
+        {auth && <button className="link" onClick={signOut}>{auth.viewer ? 'Leave' : 'Sign out'}</button>}
       </header>
 
       {!state ? (
@@ -31,6 +32,8 @@ function Main() {
         <Host state={state} token={auth.token} onSignedOut={signOut} />
       ) : state.show_winners ? (
         <Winners state={state} />
+      ) : auth.viewer ? (
+        <Viewer state={state} />
       ) : (
         <section className="card">
           <p className="muted">Team — <strong>{auth.team_name}</strong></p>
@@ -42,7 +45,7 @@ function Main() {
         </section>
       )}
 
-      {state && !(state.show_winners && auth && !auth.is_admin) && (
+      {state && !(state.show_winners && auth && !auth.is_admin) && !(auth?.viewer && state.show_standings) && (
         <Scoreboard scores={state.scores} state={state} />
       )}
     </div>
@@ -79,6 +82,7 @@ function Login({ onAuth, allowNew }) {
           : 'The host has closed new sign-ups — use your existing team name.'}
       </p>
       <button className="big" onClick={() => setMode('team')}>👥 I'm a team</button>
+      <button className="ghost" onClick={() => onAuth({ viewer: true })}>👀 Just watching</button>
       <button className="ghost" onClick={() => setMode('admin')}>🛠️ I'm the host</button>
     </section>
   )
